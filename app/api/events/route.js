@@ -11,7 +11,10 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const churchId = searchParams.get('churchId');
   if (!churchId) return NextResponse.json({ error: 'churchId required' }, { status: 400 });
-  const { data, error } = await supabase.from('cc_events').select('*').eq('church_id', churchId).order('event_date', { ascending: false });
+  const date = searchParams.get('date');
+  let q = supabase.from('cc_events').select('*').eq('church_id', churchId).order('event_date', { ascending: false });
+  if (date) q = q.eq('event_date', date);
+  const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ events: data });
 }

@@ -45,6 +45,13 @@ export default function Members() {
     load();
   };
 
+  const exportCsv = () => {
+    const rows = [['First Name','Last Name','Email','Phone','Type','Date of Birth','Notes']];
+    members.forEach(m => rows.push([m.first_name, m.last_name, m.email||'', m.phone||'', m.member_type, m.dob||'', m.notes||'']));
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'\\"')}"`).join(',')).join('\n');
+    const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='members.csv'; a.click();
+  };
+
   const filtered = members.filter(m => `${m.first_name} ${m.last_name} ${m.email}`.toLowerCase().includes(search.toLowerCase()));
 
   const inp = { padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.95rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
@@ -56,9 +63,14 @@ export default function Members() {
     <div style={{ padding: '32px 28px', maxWidth: 960 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV }}>Members</h1>
-        <button onClick={openAdd} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}>
-          <i className="fas fa-plus" style={{ marginRight: 6 }} />Add member
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={exportCsv} style={{ background: '#f1f5f9', color: NAV, border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>
+            <i className="fas fa-download" style={{ marginRight: 6 }} />Export CSV
+          </button>
+          <button onClick={openAdd} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}>
+            <i className="fas fa-plus" style={{ marginRight: 6 }} />Add member
+          </button>
+        </div>
       </div>
 
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search members…"

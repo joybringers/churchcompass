@@ -95,6 +95,15 @@ export default function FirstTimers() {
               <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.95rem', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
             </div>
+            {selected.email && (
+              <button onClick={() => {
+                const { church } = ctx;
+                const body = `Hi ${selected.first_name},%0A%0AIt was wonderful having you at ${encodeURIComponent(church.name)} on ${selected.visited_date}.%0A%0AWe'd love to stay in touch and welcome you into our community.%0A%0AFeel free to reach out if you have any questions.%0A%0ABlessings,%0AThe ${encodeURIComponent(church.name)} Team`;
+                window.open(`mailto:${selected.email}?subject=Welcome to ${encodeURIComponent(church.name)}!&body=${body}`);
+              }} style={{ width: '100%', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: 'pointer', marginBottom: 10 }}>
+                <i className="fas fa-envelope" style={{ marginRight: 8 }} />Send Welcome Email
+              </button>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setSelected(null)} style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
               <button onClick={saveFollowUp} disabled={saving}

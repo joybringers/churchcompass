@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useCC } from '../layout';
+import { useParams } from 'next/navigation';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
@@ -9,7 +10,10 @@ const BLANK_FIELD = { formType: 'first_timer', fieldLabel: '', fieldName: '', fi
 
 export default function Settings() {
   const ctx = useCC();
+  const { slug } = useParams();
   const [churchForm, setChurchForm] = useState(null);
+  const [qrSignin, setQrSignin] = useState('');
+  const [qrChildren, setQrChildren] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [customFields, setCustomFields] = useState([]);
@@ -25,6 +29,15 @@ export default function Settings() {
   };
 
   useEffect(() => { load(); }, [ctx]);
+
+  useEffect(() => {
+    if (!slug) return;
+    const base = 'https://churchcompass.elmorilx.com';
+    import('qrcode').then(QRCode => {
+      QRCode.default.toDataURL(`${base}/${slug}/signin`, { width: 220, margin: 1 }).then(setQrSignin);
+      QRCode.default.toDataURL(`${base}/${slug}/children-checkin`, { width: 220, margin: 1 }).then(setQrChildren);
+    });
+  }, [slug]);
 
   const set = (k, v) => setChurchForm(f => ({ ...f, [k]: v }));
   const setFF = (k, v) => setFieldForm(f => ({ ...f, [k]: v }));
@@ -91,6 +104,28 @@ export default function Settings() {
             {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Changes'}
           </button>
         </form>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV }}>QR Codes</h2>
+          <button onClick={() => window.print()} style={{ background: '#f1f5f9', color: NAV, border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '7px 14px', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem' }}>
+            <i className="fas fa-print" style={{ marginRight: 6 }} />Print QR Codes
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          {[
+            { label: 'Sign-In Kiosk', url: `https://churchcompass.elmorilx.com/${slug}/signin`, qr: qrSignin },
+            { label: 'Children Check-In', url: `https://churchcompass.elmorilx.com/${slug}/children-checkin`, qr: qrChildren },
+          ].map(({ label, url, qr }) => (
+            <div key={label} style={{ textAlign: 'center', background: '#f8fafc', borderRadius: 12, padding: '20px 16px' }}>
+              <div style={{ fontWeight: 700, color: NAV, marginBottom: 12, fontSize: '0.9rem' }}>{label}</div>
+              {qr ? <img src={qr} alt={label} style={{ width: 160, height: 160, borderRadius: 8, display: 'block', margin: '0 auto 12px' }} /> : <div style={{ width: 160, height: 160, background: '#e2e8f0', borderRadius: 8, margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>Generating…</div>}
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: 12, wordBreak: 'break-all' }}>{url}</div>
+              {qr && <a href={qr} download={`${label.replace(/\s+/g,'-').toLowerCase()}-qr.png`} style={{ display: 'inline-block', background: NAV, color: '#fff', borderRadius: 8, padding: '7px 14px', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}>Download PNG</a>}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>

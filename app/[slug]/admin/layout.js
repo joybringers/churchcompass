@@ -9,12 +9,14 @@ export const CC = createContext(null);
 export function useCC() { return useContext(CC); }
 
 const navItems = [
-  { label: 'Dashboard',    icon: 'fa-gauge-high',   path: '' },
-  { label: 'Members',      icon: 'fa-users',         path: '/members' },
-  { label: 'Events',       icon: 'fa-calendar-days', path: '/events' },
-  { label: 'Attendance',   icon: 'fa-clipboard-list',path: '/attendance' },
-  { label: 'First Timers', icon: 'fa-user-plus',     path: '/first-timers' },
-  { label: 'Settings',     icon: 'fa-gear',          path: '/settings' },
+  { label: 'Dashboard',    icon: 'fa-gauge-high',    path: '' },
+  { label: 'Members',      icon: 'fa-users',          path: '/members' },
+  { label: 'Events',       icon: 'fa-calendar-days',  path: '/events' },
+  { label: 'Attendance',   icon: 'fa-clipboard-list', path: '/attendance' },
+  { label: 'Children',     icon: 'fa-child',          path: '/children' },
+  { label: 'First Timers', icon: 'fa-user-plus',      path: '/first-timers' },
+  { label: 'Reports',      icon: 'fa-chart-bar',      path: '/reports' },
+  { label: 'Settings',     icon: 'fa-gear',           path: '/settings' },
 ];
 
 export default function AdminLayout({ children }) {
