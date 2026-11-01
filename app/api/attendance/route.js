@@ -28,6 +28,7 @@ export async function GET(req) {
   if (eventId) query = query.eq('event_id', eventId);
   if (memberId) query = query.eq('member_id', memberId);
   if (visitorType) query = query.eq('visitor_type', visitorType);
+  else query = query.neq('visitor_type', 'rsvp');
   if (status === 'in') query = query.is('sign_out_time', null);
 
   const { data, error } = await query;
