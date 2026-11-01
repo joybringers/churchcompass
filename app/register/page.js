@@ -43,7 +43,7 @@ export default function Register() {
 
       <div style={{ background: '#fff', borderRadius: 16, padding: '36px 32px', maxWidth: 540, width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: NAV, marginBottom: 4 }}>Register your church</h1>
-        <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: 28 }}>Free forever. No credit card needed.</p>
+        <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: 28 }}>Free plan available. No credit card needed.</p>
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
@@ -53,10 +53,10 @@ export default function Register() {
           <div>
             <label style={lbl}>Your URL slug <span style={{ color: '#dc2626' }}>*</span></label>
             <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #dde3f0', borderRadius: 10, overflow: 'hidden' }}>
-              <span style={{ padding: '11px 12px', background: '#f1f5f9', color: '#64748b', fontSize: '0.85rem', borderRight: '1px solid #dde3f0', whiteSpace: 'nowrap' }}>churchcompass.app/</span>
+              <span style={{ padding: '11px 12px', background: '#f1f5f9', color: '#64748b', fontSize: '0.85rem', borderRight: '1px solid #dde3f0', whiteSpace: 'nowrap' }}>churchcompass.elmorilx.com/</span>
               <input style={{ ...inp, border: 'none', borderRadius: 0, outline: 'none' }} value={form.slug} onChange={e => set('slug', slugify(e.target.value))} required placeholder="city-of-god" />
             </div>
-            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>Kiosk: churchcompass.app/{form.slug || 'your-slug'}/signin</p>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>Kiosk: churchcompass.elmorilx.com/{form.slug || 'your-slug'}/signin</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><label style={lbl}>Denomination</label><input style={inp} value={form.denomination} onChange={e => set('denomination', e.target.value)} placeholder="e.g. Baptist" /></div>

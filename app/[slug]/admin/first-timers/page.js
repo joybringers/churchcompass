@@ -82,6 +82,9 @@ export default function FirstTimers() {
               {selected.how_heard && <div><span style={{ color: '#64748b' }}>How heard: </span>{selected.how_heard}</div>}
               {selected.prayer_request && <div><span style={{ color: '#64748b' }}>Prayer request: </span>{selected.prayer_request}</div>}
               {selected.would_like_contact && <div style={{ color: '#8b5cf6', fontWeight: 600 }}>Requested follow-up contact</div>}
+              {selected.customValues && selected.customValues.map((cv, i) => (
+                <div key={i}><span style={{ color: '#64748b' }}>{cv.label}: </span>{cv.value}</div>
+              ))}
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Follow-up status</label>

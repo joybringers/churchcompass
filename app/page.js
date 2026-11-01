@@ -26,13 +26,13 @@ export default function Landing() {
       <section style={{ background: `linear-gradient(135deg, ${NAV} 0%, #2d5282 100%)`, padding: '80px 32px', textAlign: 'center', color: '#fff', flex: 1 }}>
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <div style={{ display: 'inline-block', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 20, padding: '6px 16px', fontSize: '0.8rem', color: GOLD, fontWeight: 600, marginBottom: 24, letterSpacing: '0.06em' }}>
-            FREE FOR ALL CHURCHES
+            FREE PLAN AVAILABLE
           </div>
           <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 800, lineHeight: 1.15, marginBottom: 20 }}>
-            Everything your church needs to stay connected
+            Simple tools for growing churches
           </h1>
           <p style={{ fontSize: '1.1rem', opacity: 0.85, lineHeight: 1.7, marginBottom: 36 }}>
-            Children's sign-in, attendance tracking, first-timer forms, member directory and event management — all in one place, free for every church.
+            Children's sign-in, attendance tracking, first-timer forms, member directory and event management — all in one place.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => router.push('/register')}
@@ -50,14 +50,14 @@ export default function Landing() {
       <section id="features" style={{ background: '#fff', padding: '64px 32px' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <h2 style={{ textAlign: 'center', fontSize: '1.75rem', fontWeight: 800, color: NAV, marginBottom: 8 }}>Everything in one platform</h2>
-          <p style={{ textAlign: 'center', color: '#64748b', marginBottom: 48 }}>Built for churches of all sizes. No subscription, no setup fee.</p>
+          <p style={{ textAlign: 'center', color: '#64748b', marginBottom: 48 }}>Built for churches of all sizes. Free plan available, no setup fee.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24 }}>
             {[
               { icon: 'fa-door-open',   title: 'Check-in / out',      desc: 'Kiosk mode for children, adults and staff.' },
-              { icon: 'fa-users',       title: 'Member directory',     desc: 'Profiles, families, children linked to parents.' },
+              { icon: 'fa-users',       title: 'Member directory',     desc: 'Profiles and member records.' },
               { icon: 'fa-user-plus',   title: 'First-timer forms',    desc: 'Digital welcome card with custom fields.' },
               { icon: 'fa-calendar-check', title: 'Events & services', desc: 'Schedule and track attendance per event.' },
-              { icon: 'fa-chart-bar',   title: 'Attendance reports',   desc: 'Trends, absentees, streaks. CSV export.' },
+              { icon: 'fa-chart-bar',   title: 'Attendance reports',   desc: 'Attendance trends. CSV export.' },
               { icon: 'fa-sliders',     title: 'Custom fields',        desc: 'Add any field to any form — your data, your way.' },
             ].map(f => (
               <div key={f.title} style={{ background: '#f8fafc', borderRadius: 12, padding: '24px 20px', borderTop: `3px solid ${GOLD}` }}>
@@ -86,7 +86,7 @@ export default function Landing() {
       </section>
 
       <footer style={{ background: '#0f1f35', padding: '20px 32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
-        ChurchCompass — free church management · by Elmoril · elmorilx.com
+        ChurchCompass — church management · by Elmoril · elmorilx.com
         <span style={{ margin: '0 12px' }}>·</span>
         <button onClick={() => router.push('/privacy')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}>Privacy Policy</button>
       </footer>
