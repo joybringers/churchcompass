@@ -87,6 +87,8 @@ export default function Landing() {
 
       <footer style={{ background: '#0f1f35', padding: '20px 32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
         ChurchCompass — free church management · by Elmoril · elmorilx.com
+        <span style={{ margin: '0 12px' }}>·</span>
+        <button onClick={() => router.push('/privacy')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}>Privacy Policy</button>
       </footer>
     </div>
   );

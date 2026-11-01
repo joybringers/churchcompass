@@ -86,6 +86,12 @@ export default function AdminLayout({ children }) {
             style={{ background: loginLoading ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, fontSize: '1rem', cursor: loginLoading ? 'not-allowed' : 'pointer' }}>
             {loginLoading ? 'Signing in…' : 'Sign In'}
           </button>
+          <div style={{ textAlign: 'center' }}>
+            <button type="button" onClick={() => router.push('/forgot-password')}
+              style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}>
+              Forgot password?
+            </button>
+          </div>
         </form>
       </div>
     </div>
