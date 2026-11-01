@@ -13,10 +13,20 @@ export default function Events() {
   const [form, setForm] = useState(BLANK);
   const [saving, setSaving] = useState(false);
 
+  const [rsvpCounts, setRsvpCounts] = useState({});
+
   const load = () => {
     if (!ctx) return;
     const { church, token } = ctx;
-    fetch(`/api/events?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setEvents((d.events || []).sort((a, b) => new Date(b.event_date) - new Date(a.event_date))));
+    fetch(`/api/events?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => {
+      const sorted = (d.events || []).sort((a, b) => new Date(b.event_date) - new Date(a.event_date));
+      setEvents(sorted);
+      // load rsvp counts for each event
+      sorted.forEach(ev => {
+        fetch(`/api/attendance?churchId=${church.id}&eventId=${ev.id}&visitorType=rsvp`, { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => r.json()).then(a => setRsvpCounts(prev => ({ ...prev, [ev.id]: (a.records || []).length })));
+      });
+    });
   };
 
   useEffect(() => { load(); }, [ctx]);
@@ -50,10 +60,21 @@ export default function Events() {
 
   return (
     <div style={{ padding: '32px 28px', maxWidth: 900 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV }}>Events</h1>
         <button onClick={openAdd} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}>
           <i className="fas fa-plus" style={{ marginRight: 6 }} />Add event
+        </button>
+      </div>
+      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <i className="fas fa-link" style={{ color: '#16a34a', fontSize: 14 }} />
+        <span style={{ color: '#166534', fontSize: '0.85rem' }}>Public events page: </span>
+        <code style={{ color: '#15803d', fontSize: '0.8rem', background: '#dcfce7', padding: '2px 8px', borderRadius: 6 }}>
+          {typeof window !== 'undefined' ? window.location.origin : 'https://churchcompass.elmorilx.com'}/{ctx.slug}/events
+        </code>
+        <button onClick={() => { const url = `${window.location.origin}/${ctx.slug}/events`; window.open(url, '_blank'); }}
+          style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>
+          Open ↗
         </button>
       </div>
 
@@ -74,7 +95,12 @@ export default function Events() {
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {rsvpCounts[ev.id] > 0 && (
+                <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 8, padding: '5px 10px', fontSize: '0.75rem', fontWeight: 700 }}>
+                  {rsvpCounts[ev.id]} RSVP{rsvpCounts[ev.id] !== 1 ? 's' : ''}
+                </span>
+              )}
               <button onClick={() => openEdit(ev)} style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>Edit</button>
               <button onClick={() => remove(ev.id)} style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>Delete</button>
             </div>
