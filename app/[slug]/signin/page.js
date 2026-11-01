@@ -11,13 +11,14 @@ function genCode() {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-const TABS = ['Members', 'Visitors', 'Children'];
+const TABS = ['Sign In', 'Visitors', 'Children', 'Sign Out'];
 
 export default function Signin() {
   const { slug } = useParams();
   const [church, setChurch] = useState(null);
   const [tab, setTab] = useState(0); // 0=Members, 1=Visitors, 2=Children
-  const [mode, setMode] = useState('home'); // home | search | found | newVisitor | newChild | done | signout
+  const [mode, setMode] = useState('home'); // home | search | found | newVisitor | newChild | done
+  const [signOutMode, setSignOutMode] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -52,6 +53,7 @@ export default function Signin() {
     setVisitorForm({ name: '', type: 'adult' });
     setChildForm({ childName: '', guardianName: '', guardianPhone: '', allergies: '' });
     setPickupCode(''); setDoneMsg(''); setIdleCountdown(IDLE_SECS);
+    setSignOutMode(false);
   }, []);
 
   const startIdleTimer = useCallback(() => {
@@ -141,7 +143,8 @@ export default function Signin() {
       });
     }
     setSubmitting(false);
-    setDoneMsg(`Goodbye, ${selected.first_name}! See you next time.`);
+    setDoneMsg(record ? `Goodbye, ${selected.first_name}! See you next time.` : `${selected.first_name} was not signed in today.`);
+    setSignOutMode(false);
     setMode('done');
     touch();
   };
@@ -197,10 +200,10 @@ export default function Signin() {
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 14, padding: 4, marginBottom: 24 }}>
+            <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 14, padding: 4, marginBottom: 24, gap: 2 }}>
               {TABS.map((t, i) => (
                 <button key={t} onClick={() => { setTab(i); touch(); }}
-                  style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.875rem', background: tab === i ? '#fff' : 'transparent', color: tab === i ? NAV : '#64748b', boxShadow: tab === i ? '0 1px 6px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}>
+                  style={{ flex: 1, padding: '10px 4px', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '0.78rem', background: tab === i ? (i === 3 ? '#fee2e2' : '#fff') : 'transparent', color: tab === i ? (i === 3 ? '#dc2626' : NAV) : '#64748b', boxShadow: tab === i ? '0 1px 6px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}>
                   {t}
                 </button>
               ))}
@@ -219,7 +222,7 @@ export default function Signin() {
             )}
 
             {tab === 0 && (
-              <button onClick={() => { setMode('search'); setTimeout(() => searchRef.current?.focus(), 100); }}
+              <button onClick={() => { setSignOutMode(false); setMode('search'); setTimeout(() => searchRef.current?.focus(), 100); }}
                 style={{ width: '100%', background: NAV, color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer' }}>
                 <i className="fas fa-magnifying-glass" style={{ marginRight: 10 }} />Find me
               </button>
@@ -236,6 +239,19 @@ export default function Signin() {
                 <i className="fas fa-child" style={{ marginRight: 10 }} />Check in a child
               </button>
             )}
+            {tab === 3 && (
+              <div>
+                <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 14, padding: '16px 18px', marginBottom: 16, textAlign: 'center' }}>
+                  <i className="fas fa-sign-out-alt" style={{ color: '#dc2626', fontSize: '2rem', marginBottom: 10, display: 'block' }} />
+                  <p style={{ color: '#7f1d1d', fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>Search your name below to sign out</p>
+                  <p style={{ color: '#991b1b', fontSize: '0.8rem', marginTop: 4, marginBottom: 0 }}>Only for members who are already signed in today</p>
+                </div>
+                <button onClick={() => { setSignOutMode(true); setMode('search'); setTimeout(() => searchRef.current?.focus(), 100); }}
+                  style={{ width: '100%', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer' }}>
+                  <i className="fas fa-magnifying-glass" style={{ marginRight: 10 }} />Find my name to sign out
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -245,7 +261,7 @@ export default function Signin() {
             <button onClick={() => { setMode('home'); setQuery(''); setResults([]); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: 20, fontSize: '0.9rem', padding: 0 }}>
               <i className="fas fa-arrow-left" style={{ marginRight: 8 }} />Back
             </button>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: NAV, marginBottom: 6 }}>Find your name</h2>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: signOutMode ? '#dc2626' : NAV, marginBottom: 6 }}>{signOutMode ? 'Find your name to sign out' : 'Find your name'}</h2>
             <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 20 }}>Type your first or last name.</p>
             <input ref={searchRef} value={query} onChange={e => { searchMembers(e.target.value); touch(); }} placeholder="Start typing…" style={inp} autoComplete="off" />
             {results.length > 0 && (
@@ -276,21 +292,30 @@ export default function Signin() {
         {/* FOUND */}
         {mode === 'found' && selected && (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 72, height: 72, borderRadius: '50%', background: NAV + '1a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <span style={{ fontSize: '2rem', fontWeight: 900, color: NAV }}>{selected.first_name[0]}{selected.last_name[0]}</span>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: (signOutMode ? '#fef2f2' : NAV + '1a'), display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <span style={{ fontSize: '2rem', fontWeight: 900, color: signOutMode ? '#dc2626' : NAV }}>{selected.first_name[0]}{selected.last_name[0]}</span>
             </div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: NAV }}>{selected.first_name} {selected.last_name}</h2>
             <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 28, textTransform: 'capitalize' }}>{selected.member_type}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <button onClick={() => signIn({ memberId: selected.id, visitorType: selected.member_type, doneMsg: `Welcome, ${selected.first_name}!` })}
-                disabled={submitting}
-                style={{ background: submitting ? '#94a3b8' : GREEN, color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.1rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                <i className="fas fa-sign-in-alt" style={{ marginRight: 10 }} />{submitting ? 'Signing in…' : 'Sign In'}
-              </button>
-              <button onClick={signOut} disabled={submitting}
-                style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 14, padding: '14px', fontSize: '0.95rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                <i className="fas fa-sign-out-alt" style={{ marginRight: 8 }} />Sign Out
-              </button>
+              {signOutMode ? (
+                <button onClick={signOut} disabled={submitting}
+                  style={{ background: submitting ? '#94a3b8' : '#dc2626', color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.1rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+                  <i className="fas fa-sign-out-alt" style={{ marginRight: 10 }} />{submitting ? 'Signing out…' : 'Sign Out'}
+                </button>
+              ) : (
+                <>
+                  <button onClick={() => signIn({ memberId: selected.id, visitorType: selected.member_type, doneMsg: `Welcome, ${selected.first_name}!` })}
+                    disabled={submitting}
+                    style={{ background: submitting ? '#94a3b8' : GREEN, color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.1rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+                    <i className="fas fa-sign-in-alt" style={{ marginRight: 10 }} />{submitting ? 'Signing in…' : 'Sign In'}
+                  </button>
+                  <button onClick={signOut} disabled={submitting}
+                    style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 14, padding: '14px', fontSize: '0.95rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+                    <i className="fas fa-sign-out-alt" style={{ marginRight: 8 }} />Sign Out Instead
+                  </button>
+                </>
+              )}
               <button onClick={() => { setMode('search'); setQuery(''); setResults([]); }}
                 style={{ background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: 12, padding: '12px', fontWeight: 600, cursor: 'pointer' }}>
                 Not me — search again
