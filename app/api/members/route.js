@@ -25,9 +25,9 @@ export async function POST(req) {
   if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   const { churchId, firstName, lastName, email, phone, dob, memberType, notes } = await req.json();
   if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
-  const { error } = await supabase.from('cc_members').insert({ church_id: churchId, first_name: firstName, last_name: lastName, email, phone, dob: dob || null, member_type: memberType || 'adult', notes });
+  const { data, error } = await supabase.from('cc_members').insert({ church_id: churchId, first_name: firstName, last_name: lastName, email, phone, dob: dob || null, member_type: memberType || 'adult', notes }).select('id').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, id: data.id });
 }
 
 export async function PUT(req) {

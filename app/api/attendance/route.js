@@ -42,8 +42,11 @@ export async function POST(req) {
 
 export async function PUT(req) {
   try {
-    const { id, signOutTime } = await req.json();
-    const { error } = await supabase.from('cc_attendance').update({ sign_out_time: signOutTime || new Date().toISOString() }).eq('id', id);
+    const { id, signOutTime, memberId } = await req.json();
+    const update = {};
+    if (signOutTime !== undefined) update.sign_out_time = signOutTime || new Date().toISOString();
+    if (memberId !== undefined) update.member_id = memberId;
+    const { error } = await supabase.from('cc_attendance').update(update).eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {
