@@ -104,16 +104,51 @@ export default function Signin() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3500);
   }, []);
 
+  const signOutFamily = async (todayRecords, familyCode) => {
+    const children = todayRecords.filter(r => {
+      if (r.sign_out_time) return false;
+      try {
+        const n = typeof r.notes === 'string' ? JSON.parse(r.notes) : (r.notes || {});
+        return n.pickupCode === familyCode;
+      } catch { return false; }
+    });
+    for (const child of children) {
+      await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: child.id, signOutTime: new Date().toISOString() }),
+      });
+    }
+    return children.length;
+  };
+
   const signOutById = useCallback(async (attendanceId, firstName) => {
     setSubmitting(true);
     try {
+      const today = new Date().toISOString().split('T')[0];
+      const attRes = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
+      const todayRecords = ((await attRes.json()).records || []);
+      const theRecord = todayRecords.find(r => r.id === attendanceId);
+
       const res = await fetch('/api/attendance', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: attendanceId, signOutTime: new Date().toISOString() }),
       });
       if (!res.ok) throw new Error();
-      setDoneMsg(`Goodbye, ${firstName}! See you next time.`);
+
+      let childCount = 0;
+      try {
+        const notes = typeof theRecord?.notes === 'string' ? JSON.parse(theRecord.notes) : (theRecord?.notes || {});
+        if (notes.role === 'guardian' && notes.familyCode) {
+          childCount = await signOutFamily(todayRecords, notes.familyCode);
+        }
+      } catch { /* ignore */ }
+
+      const msg = childCount > 0
+        ? `Goodbye, ${firstName}! ${childCount} ${childCount === 1 ? 'child' : 'children'} also signed out.`
+        : `Goodbye, ${firstName}! See you next time.`;
+      setDoneMsg(msg);
       setPickupCode('');
       setMode('done');
       touch();
@@ -121,7 +156,7 @@ export default function Signin() {
       showToast('Could not sign out. Please see an usher.');
     }
     setSubmitting(false);
-  }, [touch, showToast]);
+  }, [touch, showToast, church]);
 
   useEffect(() => {
     if (mode !== 'home') { startIdleTimer(); }
@@ -284,14 +319,19 @@ export default function Signin() {
     setSubmitting(true);
     touch();
     try {
+      const today = new Date().toISOString().split('T')[0];
+      const attRes = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
+      const todayRecords = ((await attRes.json()).records || []);
+
       let recordId = selected.attendanceId || null;
+      let theRecord = null;
       if (!recordId) {
-        const today = new Date().toISOString().split('T')[0];
-        const res = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
-        const d = await res.json();
-        const record = (d.records || []).find(r => r.member_id === selected.id && !r.sign_out_time);
-        recordId = record?.id || null;
+        theRecord = todayRecords.find(r => r.member_id === selected.id && !r.sign_out_time);
+        recordId = theRecord?.id || null;
+      } else {
+        theRecord = todayRecords.find(r => r.id === recordId);
       }
+
       if (recordId) {
         const res = await fetch('/api/attendance', {
           method: 'PUT',
@@ -299,8 +339,22 @@ export default function Signin() {
           body: JSON.stringify({ id: recordId, signOutTime: new Date().toISOString() }),
         });
         if (!res.ok) throw new Error();
+
+        let childCount = 0;
+        try {
+          const notes = typeof theRecord?.notes === 'string' ? JSON.parse(theRecord.notes) : (theRecord?.notes || {});
+          if (notes.role === 'guardian' && notes.familyCode) {
+            childCount = await signOutFamily(todayRecords, notes.familyCode);
+          }
+        } catch { /* ignore */ }
+
+        const msg = childCount > 0
+          ? `Goodbye, ${selected.first_name}! ${childCount} ${childCount === 1 ? 'child' : 'children'} also signed out.`
+          : `Goodbye, ${selected.first_name}! See you next time.`;
+        setDoneMsg(msg);
+      } else {
+        setDoneMsg(`${selected.first_name} was not signed in today.`);
       }
-      setDoneMsg(recordId ? `Goodbye, ${selected.first_name}! See you next time.` : `${selected.first_name} was not signed in today.`);
       signOutModeRef.current = false; setSignOutMode(false);
       setMode('done');
       touch();
