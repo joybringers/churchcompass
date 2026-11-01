@@ -11,7 +11,8 @@ function genCode() {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-const TABS = ['Sign In', 'Visitors', 'Children', 'Sign Out'];
+const TABS = ['Sign In', 'Visitors', 'Family', 'Sign Out'];
+const CHILD_GROUPS = ['Nursery (0-2)', 'Toddlers (3-4)', 'Kids (5-8)', 'Pre-teen (9-12)'];
 
 export default function Signin() {
   const { slug } = useParams();
@@ -36,11 +37,18 @@ export default function Signin() {
   const [clockDate, setClockDate] = useState('');
   const [toast, setToast] = useState(null);
   const [alreadyInModal, setAlreadyInModal] = useState(null);
+  const [familyStep, setFamilyStep] = useState(1);
+  const [guardianForm, setGuardianForm] = useState({ name: '', phone: '' });
+  const [prevChildren, setPrevChildren] = useState([]);
+  const [newChildren, setNewChildren] = useState([{ name: '', group: '' }]);
+  const [familySearching, setFamilySearching] = useState(false);
+  const [doneChildren, setDoneChildren] = useState([]);
   const idleRef = useRef(null);
   const countdownRef = useRef(null);
   const searchRef = useRef(null);
   const rootRef = useRef(null);
   const toastTimerRef = useRef(null);
+  const familyLookupTimerRef = useRef(null);
 
   useEffect(() => {
     fetch(`/api/churches?slug=${slug}`).then(r => r.json()).then(d => setChurch(d.church));
@@ -71,6 +79,9 @@ export default function Signin() {
     setChildForm({ childName: '', guardianName: '', guardianPhone: '', allergies: '' });
     setPickupCode(''); setDoneMsg(''); setIdleCountdown(IDLE_SECS);
     signOutModeRef.current = false; setSignOutMode(false);
+    setFamilyStep(1); setGuardianForm({ name: '', phone: '' });
+    setPrevChildren([]); setNewChildren([{ name: '', group: '' }]);
+    setFamilySearching(false); setDoneChildren([]);
   }, []);
 
   const startIdleTimer = useCallback(() => {
@@ -133,6 +144,67 @@ export default function Signin() {
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+
+  const debouncedLookupFamily = (name) => {
+    clearTimeout(familyLookupTimerRef.current);
+    if (name.length < 2) { setPrevChildren([]); setFamilySearching(false); return; }
+    if (!church) return;
+    setFamilySearching(true);
+    familyLookupTimerRef.current = setTimeout(async () => {
+      try {
+        const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
+        const res = await fetch(`/api/attendance?churchId=${church.id}&visitorType=child&from=${fourWeeksAgo}&to=${today}`);
+        const d = await res.json();
+        const ql = name.toLowerCase();
+        const seen = new Set();
+        const unique = [];
+        for (const r of (d.records || [])) {
+          try {
+            const notes = typeof r.notes === 'string' ? JSON.parse(r.notes) : (r.notes || {});
+            if (notes.guardianName?.toLowerCase().includes(ql)) {
+              const key = r.visitor_name?.toLowerCase();
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                unique.push({ name: r.visitor_name, group: notes.group || '', selected: true });
+              }
+            }
+          } catch { /* ignore */ }
+        }
+        setPrevChildren(unique);
+      } catch { /* ignore */ }
+      setFamilySearching(false);
+    }, 600);
+  };
+
+  const signInFamily = async () => {
+    const allChildren = [
+      ...prevChildren.filter(c => c.selected),
+      ...newChildren.filter(c => c.name.trim()),
+    ];
+    if (allChildren.length === 0) { showToast('Please add at least one child.'); return; }
+    setSubmitting(true); touch();
+    const code = genCode();
+    try {
+      await fetch('/api/attendance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ churchId: church.id, visitorName: guardianForm.name, visitorType: 'adult', eventId: selectedEvent || null, notes: JSON.stringify({ role: 'guardian', familyCode: code }) }),
+      });
+      for (const child of allChildren) {
+        await fetch('/api/attendance', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ churchId: church.id, visitorName: child.name, visitorType: 'child', eventId: selectedEvent || null, notes: JSON.stringify({ pickupCode: code, group: child.group || '', guardianName: guardianForm.name, guardianPhone: guardianForm.phone }) }),
+        });
+      }
+      setDoneChildren(allChildren);
+      setPickupCode(code);
+      setDoneMsg(`${guardianForm.name.split(' ')[0]}'s family is checked in!`);
+      setMode('done');
+    } catch {
+      showToast('Could not complete check-in. Please see an usher.');
+    }
+    setSubmitting(false);
+  };
 
   const searchMembers = async (q) => {
     setQuery(q);
@@ -331,9 +403,9 @@ export default function Signin() {
               </button>
             )}
             {tab === 2 && (
-              <button onClick={() => setMode('newChild')}
+              <button onClick={() => { setFamilyStep(1); setMode('newFamily'); touch(); }}
                 style={{ width: '100%', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer' }}>
-                <i className="fas fa-child" style={{ marginRight: 10 }} />Check in a child
+                <i className="fas fa-people-group" style={{ marginRight: 10 }} />Family check-in
               </button>
             )}
             {tab === 3 && (
@@ -459,6 +531,112 @@ export default function Signin() {
           </div>
         )}
 
+        {/* NEW FAMILY */}
+        {mode === 'newFamily' && (
+          <div>
+            <button onClick={() => { if (familyStep === 1) { setMode('home'); } else { setFamilyStep(1); } touch(); }}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: 20, fontSize: '0.9rem', padding: 0 }}>
+              <i className="fas fa-arrow-left" style={{ marginRight: 8 }} />Back
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, background: '#8b5cf6', color: '#fff' }}>1</div>
+              <div style={{ flex: 1, height: 3, borderRadius: 2, background: familyStep > 1 ? '#8b5cf6' : '#e2e8f0' }} />
+              <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, background: familyStep >= 2 ? '#8b5cf6' : '#e2e8f0', color: familyStep >= 2 ? '#fff' : '#94a3b8' }}>2</div>
+              <span style={{ fontSize: '0.8rem', color: '#64748b', marginLeft: 4 }}>{familyStep === 1 ? 'Guardian' : 'Children'}</span>
+            </div>
+
+            {familyStep === 1 && (
+              <div>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: NAV, marginBottom: 6 }}>Family check-in</h2>
+                <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 20 }}>Start with the guardian's details.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div>
+                    <label style={lbl}>Guardian's name *</label>
+                    <input style={inp} value={guardianForm.name} autoComplete="off"
+                      onChange={e => { const v = e.target.value; setGuardianForm(f => ({ ...f, name: v })); touch(); debouncedLookupFamily(v); }}
+                      placeholder="Your full name" />
+                    {familySearching && <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 6 }}><i className="fas fa-spinner fa-spin" style={{ marginRight: 6 }} />Looking up previous visits…</div>}
+                    {!familySearching && prevChildren.length > 0 && (
+                      <div style={{ marginTop: 8, background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, padding: '9px 12px', fontSize: '0.8rem', color: '#166534', fontWeight: 600 }}>
+                        <i className="fas fa-star" style={{ marginRight: 6, color: '#22c55e' }} />Welcome back! Your children are ready to check in.
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label style={lbl}>Guardian's phone</label>
+                    <input style={inp} type="tel" value={guardianForm.phone} autoComplete="off"
+                      onChange={e => { setGuardianForm(f => ({ ...f, phone: e.target.value })); touch(); }}
+                      placeholder="Phone number (optional)" />
+                  </div>
+                </div>
+                <button onClick={() => { if (!guardianForm.name.trim()) { showToast('Please enter your name.'); return; } setFamilyStep(2); touch(); }}
+                  style={{ width: '100%', marginTop: 24, background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.05rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Next — Add Children <i className="fas fa-arrow-right" style={{ marginLeft: 8 }} />
+                </button>
+              </div>
+            )}
+
+            {familyStep === 2 && (
+              <div>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: NAV, marginBottom: 4 }}>Add children</h2>
+                <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 16 }}>Checking in with {guardianForm.name.split(' ')[0]}.</p>
+
+                {prevChildren.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Previous children — tap to select</div>
+                    {prevChildren.map((c, i) => (
+                      <button key={i} onClick={() => { const u = [...prevChildren]; u[i] = { ...u[i], selected: !u[i].selected }; setPrevChildren(u); touch(); }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: c.selected ? '#f5f3ff' : '#f8fafc', border: `2px solid ${c.selected ? '#8b5cf6' : '#e2e8f0'}`, borderRadius: 12, padding: '12px 14px', marginBottom: 6, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                        <div style={{ width: 22, height: 22, borderRadius: 6, background: c.selected ? '#8b5cf6' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {c.selected && <i className="fas fa-check" style={{ color: '#fff', fontSize: 11 }} />}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, color: NAV, fontSize: '0.95rem' }}>{c.name}</div>
+                          {c.group && <div style={{ color: '#64748b', fontSize: '0.75rem' }}>{c.group}</div>}
+                        </div>
+                      </button>
+                    ))}
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center', margin: '8px 0 14px' }}>— add a new child below —</div>
+                  </div>
+                )}
+
+                {newChildren.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <input style={{ ...inp, padding: '13px 16px', fontSize: '0.95rem' }} value={c.name}
+                        onChange={e => { const a = [...newChildren]; a[i] = { ...a[i], name: e.target.value }; setNewChildren(a); touch(); }}
+                        placeholder="Child's full name" autoComplete="off" />
+                      <select style={{ ...inp, padding: '11px 14px', fontSize: '0.875rem' }} value={c.group}
+                        onChange={e => { const a = [...newChildren]; a[i] = { ...a[i], group: e.target.value }; setNewChildren(a); touch(); }}>
+                        <option value="">Group (optional)</option>
+                        {CHILD_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </div>
+                    {newChildren.length > 1 && (
+                      <button onClick={() => { setNewChildren(newChildren.filter((_, j) => j !== i)); touch(); }}
+                        style={{ width: 36, height: 36, borderRadius: '50%', background: '#fee2e2', border: 'none', color: '#dc2626', cursor: 'pointer', flexShrink: 0, marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>
+                        <i className="fas fa-times" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {newChildren.length < 5 && (
+                  <button onClick={() => { setNewChildren([...newChildren, { name: '', group: '' }]); touch(); }}
+                    style={{ width: '100%', padding: '12px', border: '2px dashed #c4b5fd', borderRadius: 12, background: '#f5f3ff', color: '#7c3aed', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', marginBottom: 16, fontFamily: 'inherit' }}>
+                    <i className="fas fa-plus" style={{ marginRight: 8 }} />Add {newChildren[0]?.name ? 'another' : 'a'} child
+                  </button>
+                )}
+
+                <button onClick={signInFamily} disabled={submitting}
+                  style={{ width: '100%', background: submitting ? '#94a3b8' : '#8b5cf6', color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.05rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  <i className="fas fa-child" style={{ marginRight: 10 }} />{submitting ? 'Checking in…' : 'Check In Family'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* NEW CHILD */}
         {mode === 'newChild' && (
           <div>
@@ -503,6 +681,20 @@ export default function Signin() {
               <i className="fas fa-check" style={{ fontSize: 36, color: GREEN }} />
             </div>
             <h2 style={{ fontSize: '1.6rem', fontWeight: 900, color: NAV, marginBottom: 8 }}>{doneMsg}</h2>
+            {doneChildren.length > 0 && (
+              <div style={{ background: '#f5f3ff', border: '1.5px solid #c4b5fd', borderRadius: 14, padding: '14px 16px', margin: '12px 0 4px', textAlign: 'left' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Children checked in</div>
+                {doneChildren.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: i < doneChildren.length - 1 ? '1px solid #ede9fe' : 'none' }}>
+                    <i className="fas fa-child" style={{ color: '#8b5cf6', width: 14 }} />
+                    <div>
+                      <span style={{ fontWeight: 700, color: NAV, fontSize: '0.9rem' }}>{c.name}</span>
+                      {c.group && <span style={{ color: '#7c3aed', fontSize: '0.75rem', marginLeft: 8 }}>{c.group}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             {pickupCode && (
               <div style={{ background: GOLD + '1a', border: `2px solid ${GOLD}`, borderRadius: 16, padding: '20px', margin: '20px 0' }}>
                 <div style={{ color: '#92400e', fontSize: '0.8rem', fontWeight: 700, marginBottom: 8 }}>PICKUP CODE</div>
