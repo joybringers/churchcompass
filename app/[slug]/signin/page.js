@@ -19,6 +19,7 @@ export default function Signin() {
   const [tab, setTab] = useState(0); // 0=Members, 1=Visitors, 2=Children
   const [mode, setMode] = useState('home'); // home | search | found | newVisitor | newChild | done
   const [signOutMode, setSignOutMode] = useState(false);
+  const signOutModeRef = useRef(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -53,7 +54,7 @@ export default function Signin() {
     setVisitorForm({ name: '', type: 'adult' });
     setChildForm({ childName: '', guardianName: '', guardianPhone: '', allergies: '' });
     setPickupCode(''); setDoneMsg(''); setIdleCountdown(IDLE_SECS);
-    setSignOutMode(false);
+    signOutModeRef.current = false; setSignOutMode(false);
   }, []);
 
   const startIdleTimer = useCallback(() => {
@@ -96,6 +97,26 @@ export default function Signin() {
     setQuery(q);
     if (q.length < 2) { setResults([]); return; }
     if (!church) return;
+
+    if (signOutModeRef.current) {
+      const today = new Date().toISOString().split('T')[0];
+      const res = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
+      const d = await res.json();
+      const ql = q.toLowerCase();
+      const filtered = (d.records || []).filter(r => {
+        if (r.sign_out_time) return false;
+        const name = r.visitor_name || (r.cc_members ? `${r.cc_members.first_name} ${r.cc_members.last_name}` : '');
+        return name.toLowerCase().includes(ql);
+      });
+      setResults(filtered.map(r => ({
+        attendanceId: r.id,
+        first_name: r.visitor_name || r.cc_members?.first_name || 'Unknown',
+        last_name: r.visitor_name ? '' : (r.cc_members?.last_name || ''),
+        member_type: r.visitor_type,
+      })));
+      return;
+    }
+
     const res = await fetch(`/api/members?churchId=${church.id}&search=${encodeURIComponent(q)}`);
     const d = await res.json();
     setResults(d.members || []);
@@ -129,22 +150,24 @@ export default function Signin() {
     if (!selected) return;
     setSubmitting(true);
     touch();
-    const { church: c, token: t } = { church, token: null };
-    // find today's open attendance for this member
-    const today = new Date().toISOString().split('T')[0];
-    const res = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
-    const d = await res.json();
-    const record = (d.records || []).find(r => r.member_id === selected.id && !r.sign_out_time);
-    if (record) {
+    let recordId = selected.attendanceId || null;
+    if (!recordId) {
+      const today = new Date().toISOString().split('T')[0];
+      const res = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
+      const d = await res.json();
+      const record = (d.records || []).find(r => r.member_id === selected.id && !r.sign_out_time);
+      recordId = record?.id || null;
+    }
+    if (recordId) {
       await fetch('/api/attendance', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: record.id, signOutTime: new Date().toISOString() }),
+        body: JSON.stringify({ id: recordId, signOutTime: new Date().toISOString() }),
       });
     }
     setSubmitting(false);
-    setDoneMsg(record ? `Goodbye, ${selected.first_name}! See you next time.` : `${selected.first_name} was not signed in today.`);
-    setSignOutMode(false);
+    setDoneMsg(recordId ? `Goodbye, ${selected.first_name}! See you next time.` : `${selected.first_name} was not signed in today.`);
+    signOutModeRef.current = false; setSignOutMode(false);
     setMode('done');
     touch();
   };
@@ -222,7 +245,7 @@ export default function Signin() {
             )}
 
             {tab === 0 && (
-              <button onClick={() => { setSignOutMode(false); setMode('search'); setTimeout(() => searchRef.current?.focus(), 100); }}
+              <button onClick={() => { signOutModeRef.current = false; setSignOutMode(false); setMode('search'); setTimeout(() => searchRef.current?.focus(), 100); }}
                 style={{ width: '100%', background: NAV, color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer' }}>
                 <i className="fas fa-magnifying-glass" style={{ marginRight: 10 }} />Find me
               </button>
@@ -246,7 +269,7 @@ export default function Signin() {
                   <p style={{ color: '#7f1d1d', fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>Search your name below to sign out</p>
                   <p style={{ color: '#991b1b', fontSize: '0.8rem', marginTop: 4, marginBottom: 0 }}>Only for members who are already signed in today</p>
                 </div>
-                <button onClick={() => { setSignOutMode(true); setMode('search'); setTimeout(() => searchRef.current?.focus(), 100); }}
+                <button onClick={() => { signOutModeRef.current = true; setSignOutMode(true); setMode('search'); setTimeout(() => searchRef.current?.focus(), 100); }}
                   style={{ width: '100%', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer' }}>
                   <i className="fas fa-magnifying-glass" style={{ marginRight: 10 }} />Find my name to sign out
                 </button>
@@ -280,10 +303,16 @@ export default function Signin() {
             )}
             {query.length >= 2 && results.length === 0 && (
               <div style={{ marginTop: 20, textAlign: 'center' }}>
-                <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 12 }}>Not found. Try visiting as a guest.</p>
-                <button onClick={() => setMode('newVisitor')} style={{ background: GOLD, color: NAV, border: 'none', borderRadius: 12, padding: '12px 24px', fontWeight: 700, cursor: 'pointer' }}>
-                  <i className="fas fa-user-plus" style={{ marginRight: 8 }} />Sign in as visitor
-                </button>
+                {signOutMode ? (
+                  <p style={{ color: '#dc2626', fontSize: '0.875rem' }}>No one signed in today matches that name.</p>
+                ) : (
+                  <>
+                    <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 12 }}>Not found. Try visiting as a guest.</p>
+                    <button onClick={() => setMode('newVisitor')} style={{ background: GOLD, color: NAV, border: 'none', borderRadius: 12, padding: '12px 24px', fontWeight: 700, cursor: 'pointer' }}>
+                      <i className="fas fa-user-plus" style={{ marginRight: 8 }} />Sign in as visitor
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -293,7 +322,7 @@ export default function Signin() {
         {mode === 'found' && selected && (
           <div style={{ textAlign: 'center' }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', background: (signOutMode ? '#fef2f2' : NAV + '1a'), display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <span style={{ fontSize: '2rem', fontWeight: 900, color: signOutMode ? '#dc2626' : NAV }}>{selected.first_name[0]}{selected.last_name[0]}</span>
+              <span style={{ fontSize: '2rem', fontWeight: 900, color: signOutMode ? '#dc2626' : NAV }}>{selected.first_name?.[0]}{selected.last_name?.[0]}</span>
             </div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: NAV }}>{selected.first_name} {selected.last_name}</h2>
             <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 28, textTransform: 'capitalize' }}>{selected.member_type}</p>
