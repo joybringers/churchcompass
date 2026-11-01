@@ -450,7 +450,7 @@ export default function Signin() {
 
       {/* Footer */}
       <div style={{ marginTop: 20, color: 'rgba(255,255,255,0.3)', fontSize: '0.7rem' }}>
-        Powered by ChurchCompass
+        Powered by <a href="https://elmorilx.com" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'none' }}>Elmoril</a>
       </div>
     </div>
   );
