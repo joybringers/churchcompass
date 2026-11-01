@@ -53,7 +53,7 @@ export default function Members() {
     const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
 
     // Fetch all attendance records with a visitor name
-    const attRes = await fetch(`/api/attendance?churchId=${church.id}`);
+    const attRes = await fetch(`/api/attendance?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
     const attData = await attRes.json();
     const visitorRecords = (attData.records || []).filter(r => r.visitor_name && !r.member_id);
 

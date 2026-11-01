@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { supabase } from '@/lib/supabase';
+import { sendEmail } from '@/lib/email';
 
 // POST — request a password reset (send email with token)
 export async function POST(req) {
@@ -25,16 +26,13 @@ export async function POST(req) {
 
     const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://churchcompass.elmorilx.com'}/reset-password?token=${token}`;
 
-    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'https://churchcompass.elmorilx.com'}/api/email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    try {
+      await sendEmail({
         to: church.admin_email,
         subject: 'Reset your ChurchCompass password',
-        churchName: 'ChurchCompass',
         body: `Hi,\n\nWe received a request to reset the password for your ChurchCompass account (${church.name}).\n\nClick the link below to set a new password. This link expires in 1 hour.\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email — your password won't change.\n\nChurchCompass Team`,
-      }),
-    });
+      });
+    } catch { /* always answer ok, so we never reveal whether an email is registered */ }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

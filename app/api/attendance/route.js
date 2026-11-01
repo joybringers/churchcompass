@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { adminFromRequest, cleanText, parseNotes, VISITOR_TYPES } from '@/lib/guard';
 
+// Reading and changing attendance records is for signed-in church admins only,
+// and only for their own church. The kiosk uses /api/kiosk instead.
 export async function GET(req) {
+  const payload = await adminFromRequest(req);
+  if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const churchId = searchParams.get('churchId');
   const date = searchParams.get('date');
@@ -13,6 +19,7 @@ export async function GET(req) {
   const visitorType = searchParams.get('visitorType');
 
   if (!churchId) return NextResponse.json({ error: 'churchId required' }, { status: 400 });
+  if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
 
   let query = supabase.from('cc_attendance').select('*, cc_members(first_name, last_name, member_type), cc_events(name)').eq('church_id', churchId).order('sign_in_time', { ascending: false });
   if (date) query = query.gte('sign_in_time', date + 'T00:00:00').lte('sign_in_time', date + 'T23:59:59');
@@ -28,28 +35,72 @@ export async function GET(req) {
   return NextResponse.json({ records: data });
 }
 
+async function belongsToChurch(table, id, churchId) {
+  if (!id) return true;
+  const { data } = await supabase.from(table).select('id').eq('id', id).eq('church_id', churchId).maybeSingle();
+  return !!data;
+}
+
 export async function POST(req) {
   try {
     const { churchId, memberId, visitorName, visitorType, eventId, notes } = await req.json();
     if (!churchId) return NextResponse.json({ error: 'churchId required' }, { status: 400 });
-    const { error } = await supabase.from('cc_attendance').insert({ church_id: churchId, member_id: memberId || null, visitor_name: visitorName || null, visitor_type: visitorType || 'member', event_id: eventId || null, notes: notes || null });
+
+    const payload = await adminFromRequest(req);
+    const isAdmin = !!payload && payload.churchId === churchId;
+
+    // Anyone else may only register for an event (RSVP). Everything else
+    // (kiosk check-in, children's check-in) goes through /api/kiosk.
+    if (!isAdmin) {
+      if (visitorType !== 'rsvp' || !eventId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+      if (!(await belongsToChurch('cc_events', eventId, churchId))) return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
+      const name = cleanText(visitorName, 120);
+      if (!name) return NextResponse.json({ error: 'A name is required.' }, { status: 400 });
+      const n = parseNotes(notes);
+      const safeNotes = JSON.stringify({ email: cleanText(n.email, 200) || '', phone: cleanText(n.phone, 40) || '', rsvp: true });
+      const { error } = await supabase.from('cc_attendance').insert({ church_id: churchId, event_id: eventId, visitor_name: name, visitor_type: 'rsvp', notes: safeNotes });
+      if (error) return NextResponse.json({ error: 'Could not save your registration.' }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
+    const type = visitorType || 'member';
+    if (![...VISITOR_TYPES, 'rsvp'].includes(type)) return NextResponse.json({ error: 'Invalid visitor type.' }, { status: 400 });
+    if (!(await belongsToChurch('cc_members', memberId, churchId))) return NextResponse.json({ error: 'Member not found.' }, { status: 404 });
+    if (!(await belongsToChurch('cc_events', eventId, churchId))) return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
+
+    const { error } = await supabase.from('cc_attendance').insert({ church_id: churchId, member_id: memberId || null, visitor_name: cleanText(visitorName, 120), visitor_type: type, event_id: eventId || null, notes: notes || null });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: 'Bad request.' }, { status: 400 });
   }
 }
 
 export async function PUT(req) {
   try {
+    const payload = await adminFromRequest(req);
+    if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+
     const { id, signOutTime, memberId } = await req.json();
+    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+
     const update = {};
-    if (signOutTime !== undefined) update.sign_out_time = signOutTime || new Date().toISOString();
-    if (memberId !== undefined) update.member_id = memberId;
-    const { error } = await supabase.from('cc_attendance').update(update).eq('id', id);
+    if (signOutTime !== undefined) {
+      const t = signOutTime ? new Date(signOutTime) : new Date();
+      if (Number.isNaN(t.getTime())) return NextResponse.json({ error: 'Invalid time.' }, { status: 400 });
+      update.sign_out_time = t.toISOString();
+    }
+    if (memberId !== undefined) {
+      if (!(await belongsToChurch('cc_members', memberId, payload.churchId))) return NextResponse.json({ error: 'Member not found.' }, { status: 404 });
+      update.member_id = memberId || null;
+    }
+    if (Object.keys(update).length === 0) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
+
+    const { data, error } = await supabase.from('cc_attendance').update(update).eq('id', id).eq('church_id', payload.churchId).select('id');
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data || data.length === 0) return NextResponse.json({ error: 'Record not found.' }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: 'Bad request.' }, { status: 400 });
   }
 }

@@ -6,10 +6,6 @@ const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 const GREEN = '#22c55e';
 
-function genCode() {
-  return String(Math.floor(1000 + Math.random() * 9000));
-}
-
 export default function ChildrenCheckin() {
   const { slug } = useParams();
   const [church, setChurch] = useState(null);
@@ -20,6 +16,7 @@ export default function ChildrenCheckin() {
   const [form, setForm] = useState({ childName: '', guardianName: '', guardianPhone: '', allergies: '' });
   const [pickupCode, setPickupCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const resetRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -46,7 +43,7 @@ export default function ChildrenCheckin() {
     setQuery(q);
     if (q.length < 2) { setMembers([]); return; }
     if (!church) return;
-    const res = await fetch(`/api/members?churchId=${church.id}&search=${encodeURIComponent(q)}`);
+    const res = await fetch(`/api/kiosk?action=members&churchId=${church.id}&q=${encodeURIComponent(q)}`);
     const d = await res.json();
     setMembers((d.members || []).filter(m => m.member_type === 'child' || m.member_type === 'youth'));
   };
@@ -63,24 +60,36 @@ export default function ChildrenCheckin() {
 
   const submit = async () => {
     setSubmitting(true);
-    const code = genCode();
-    setPickupCode(code);
-    const notes = JSON.stringify({ pickupCode: code, guardianName: form.guardianName, guardianPhone: form.guardianPhone, allergies: form.allergies });
-    await fetch('/api/attendance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        churchId: church.id,
-        memberId: selected?.id || null,
-        visitorName: form.childName,
-        visitorType: 'child',
-        eventId: null,
-        notes,
-      }),
-    });
+    setSubmitError('');
+    try {
+      const res = await fetch('/api/kiosk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'checkin',
+          churchId: church.id,
+          memberId: selected?.id || null,
+          visitorName: form.childName,
+          visitorType: 'child',
+          guardianName: form.guardianName,
+          guardianPhone: form.guardianPhone,
+          allergies: form.allergies,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error();
+      if (data.alreadyIn) {
+        setSubmitError("This child is already checked in today. Please see a children's leader if you need help.");
+        setSubmitting(false);
+        return;
+      }
+      setPickupCode(data.pickupCode || '');
+      setMode('done');
+      scheduleReset();
+    } catch {
+      setSubmitError("Could not check in. Please see a children's leader.");
+    }
     setSubmitting(false);
-    setMode('done');
-    scheduleReset();
   };
 
   const reset = () => {
@@ -220,6 +229,7 @@ export default function ChildrenCheckin() {
                 </div>
               )}
             </div>
+            {submitError && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: 12 }}>{submitError}</p>}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setMode(selected ? 'search' : 'new')} style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 12, padding: '14px', fontWeight: 600, cursor: 'pointer' }}>Edit</button>
               <button onClick={submit} disabled={submitting}

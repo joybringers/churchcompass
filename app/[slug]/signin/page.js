@@ -7,8 +7,24 @@ const GOLD = '#f59e0b';
 const GREEN = '#22c55e';
 const IDLE_SECS = 45;
 
-function genCode() {
-  return String(Math.floor(1000 + Math.random() * 9000));
+// The kiosk talks to /api/kiosk, which only ever returns names and checks pick-up codes on the server.
+async function kioskGet(churchId, params) {
+  const qs = new URLSearchParams({ churchId, ...params }).toString();
+  const res = await fetch(`/api/kiosk?${qs}`);
+  let data = {};
+  try { data = await res.json(); } catch { /* ignore */ }
+  return { ok: res.ok, data };
+}
+
+async function kioskPost(churchId, body) {
+  const res = await fetch('/api/kiosk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ churchId, ...body }),
+  });
+  let data = {};
+  try { data = await res.json(); } catch { /* ignore */ }
+  return { ok: res.ok, data };
 }
 
 const TABS = ['Sign In', 'Visitors', 'Family', 'Sign Out'];
@@ -37,6 +53,8 @@ export default function Signin() {
   const [clockDate, setClockDate] = useState('');
   const [toast, setToast] = useState(null);
   const [alreadyInModal, setAlreadyInModal] = useState(null);
+  const [codeModal, setCodeModal] = useState(null); // asks for the pick-up code before signing out a child or family
+  const [codeInput, setCodeInput] = useState('');
   const [familyStep, setFamilyStep] = useState(1);
   const [guardianForm, setGuardianForm] = useState({ name: '', phone: '' });
   const [prevChildren, setPrevChildren] = useState([]);
@@ -104,52 +122,38 @@ export default function Signin() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3500);
   }, []);
 
-  const signOutFamily = async (todayRecords, familyCode) => {
-    const children = todayRecords.filter(r => {
-      if (r.sign_out_time) return false;
-      try {
-        const n = typeof r.notes === 'string' ? JSON.parse(r.notes) : (r.notes || {});
-        return n.pickupCode === familyCode;
-      } catch { return false; }
-    });
-    for (const child of children) {
-      await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: child.id, signOutTime: new Date().toISOString() }),
-      });
-    }
-    return children.length;
-  };
-
-  const signOutById = useCallback(async (attendanceId, firstName) => {
+  const performSignOut = useCallback(async ({ attendanceId, memberId, firstName, code }) => {
     setSubmitting(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const attRes = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
-      const todayRecords = ((await attRes.json()).records || []);
-      const theRecord = todayRecords.find(r => r.id === attendanceId);
-
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: attendanceId, signOutTime: new Date().toISOString() }),
-      });
-      if (!res.ok) throw new Error();
-
-      let childCount = 0;
-      try {
-        const notes = typeof theRecord?.notes === 'string' ? JSON.parse(theRecord.notes) : (theRecord?.notes || {});
-        if (notes.role === 'guardian' && notes.familyCode) {
-          childCount = await signOutFamily(todayRecords, notes.familyCode);
+      const { ok, data } = await kioskPost(church.id, { action: 'signout', attendanceId: attendanceId || null, memberId: memberId || null, code: code || null });
+      if (!ok) {
+        if (data.reason === 'code_required') {
+          setCodeInput('');
+          setCodeModal({ attendanceId, memberId, firstName, error: '' });
+        } else if (data.reason === 'wrong_code') {
+          setCodeInput('');
+          setCodeModal({ attendanceId, memberId, firstName, error: `That code is not right. ${data.attemptsLeft} ${data.attemptsLeft === 1 ? 'try' : 'tries'} left.` });
+        } else if (data.reason === 'locked') {
+          setCodeModal(null);
+          showToast("Too many wrong codes. Please see a children's leader.");
+        } else if (data.reason === 'busy') {
+          showToast('Please try again.');
+        } else {
+          showToast('Could not sign out. Please see an usher.');
         }
-      } catch { /* ignore */ }
-
-      const msg = childCount > 0
-        ? `Goodbye, ${firstName}! ${childCount} ${childCount === 1 ? 'child' : 'children'} also signed out.`
-        : `Goodbye, ${firstName}! See you next time.`;
-      setDoneMsg(msg);
+        setSubmitting(false);
+        touch();
+        return;
+      }
+      setCodeModal(null);
+      const childCount = data.childCount || 0;
+      setDoneMsg(data.notSignedIn
+        ? `${firstName} was not signed in today.`
+        : childCount > 0
+          ? `Goodbye, ${firstName}! ${childCount} ${childCount === 1 ? 'child' : 'children'} also signed out.`
+          : `Goodbye, ${firstName}! See you next time.`);
       setPickupCode('');
+      signOutModeRef.current = false; setSignOutMode(false);
       setMode('done');
       touch();
     } catch {
@@ -187,26 +191,8 @@ export default function Signin() {
     setFamilySearching(true);
     familyLookupTimerRef.current = setTimeout(async () => {
       try {
-        const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const today = new Date().toISOString().split('T')[0];
-        const res = await fetch(`/api/attendance?churchId=${church.id}&visitorType=child&from=${fourWeeksAgo}&to=${today}`);
-        const d = await res.json();
-        const ql = name.toLowerCase();
-        const seen = new Set();
-        const unique = [];
-        for (const r of (d.records || [])) {
-          try {
-            const notes = typeof r.notes === 'string' ? JSON.parse(r.notes) : (r.notes || {});
-            if (notes.guardianName?.toLowerCase().includes(ql)) {
-              const key = r.visitor_name?.toLowerCase();
-              if (key && !seen.has(key)) {
-                seen.add(key);
-                unique.push({ name: r.visitor_name, group: notes.group || '', selected: true });
-              }
-            }
-          } catch { /* ignore */ }
-        }
-        setPrevChildren(unique);
+        const { data } = await kioskGet(church.id, { action: 'family', guardian: name });
+        setPrevChildren((data.children || []).map(c => ({ name: c.name, group: c.group || '', selected: true })));
       } catch { /* ignore */ }
       setFamilySearching(false);
     }, 600);
@@ -219,20 +205,17 @@ export default function Signin() {
     ];
     if (allChildren.length === 0) { showToast('Please add at least one child.'); return; }
     setSubmitting(true); touch();
-    const code = genCode();
     try {
-      await fetch('/api/attendance', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ churchId: church.id, visitorName: guardianForm.name, visitorType: 'adult', eventId: selectedEvent || null, notes: JSON.stringify({ role: 'guardian', familyCode: code }) }),
+      const { ok, data } = await kioskPost(church.id, {
+        action: 'family-checkin',
+        guardianName: guardianForm.name,
+        guardianPhone: guardianForm.phone,
+        eventId: selectedEvent || null,
+        children: allChildren.map(c => ({ name: c.name, group: c.group || '' })),
       });
-      for (const child of allChildren) {
-        await fetch('/api/attendance', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ churchId: church.id, visitorName: child.name, visitorType: 'child', eventId: selectedEvent || null, notes: JSON.stringify({ pickupCode: code, group: child.group || '', guardianName: guardianForm.name, guardianPhone: guardianForm.phone }) }),
-        });
-      }
+      if (!ok) throw new Error();
       setDoneChildren(allChildren);
-      setPickupCode(code);
+      setPickupCode(data.pickupCode || '');
       setDoneMsg(`${guardianForm.name.split(' ')[0]}'s family is checked in!`);
       setMode('done');
     } catch {
@@ -247,27 +230,13 @@ export default function Signin() {
     if (!church) return;
 
     if (signOutModeRef.current) {
-      const today = new Date().toISOString().split('T')[0];
-      const res = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
-      const d = await res.json();
-      const ql = q.toLowerCase();
-      const filtered = (d.records || []).filter(r => {
-        if (r.sign_out_time) return false;
-        const name = r.visitor_name || (r.cc_members ? `${r.cc_members.first_name} ${r.cc_members.last_name}` : '');
-        return name.toLowerCase().includes(ql);
-      });
-      setResults(filtered.map(r => ({
-        attendanceId: r.id,
-        first_name: r.visitor_name || r.cc_members?.first_name || 'Unknown',
-        last_name: r.visitor_name ? '' : (r.cc_members?.last_name || ''),
-        member_type: r.visitor_type,
-      })));
+      const { data } = await kioskGet(church.id, { action: 'signed-in', q });
+      setResults(data.results || []);
       return;
     }
 
-    const res = await fetch(`/api/members?churchId=${church.id}&search=${encodeURIComponent(q)}`);
-    const d = await res.json();
-    setResults(d.members || []);
+    const { data } = await kioskGet(church.id, { action: 'members', q });
+    setResults(data.members || []);
   };
 
   const selectMember = (m) => { setSelected(m); setMode('found'); touch(); };
@@ -275,33 +244,26 @@ export default function Signin() {
   const signIn = async (opts = {}) => {
     setSubmitting(true);
     touch();
+    let code = '';
     try {
-      // Already-signed-in check for members
-      if (opts.memberId) {
-        const today = new Date().toISOString().split('T')[0];
-        const chk = await fetch(`/api/attendance?churchId=${church.id}&memberId=${opts.memberId}&from=${today}&to=${today}`);
-        const chkData = await chk.json();
-        const open = (chkData.records || []).find(r => !r.sign_out_time);
-        if (open) {
-          setSubmitting(false);
-          const firstName = opts.doneMsg?.replace('Welcome, ', '').replace('!', '') || 'You';
-          setAlreadyInModal({ firstName, attendanceId: open.id });
-          return;
-        }
-      }
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          churchId: church.id,
-          memberId: opts.memberId || null,
-          visitorName: opts.visitorName || null,
-          visitorType: opts.visitorType || 'adult',
-          eventId: selectedEvent || null,
-          notes: opts.notes || null,
-        }),
+      const { ok, data } = await kioskPost(church.id, {
+        action: 'checkin',
+        memberId: opts.memberId || null,
+        visitorName: opts.visitorName || null,
+        visitorType: opts.visitorType || 'adult',
+        eventId: selectedEvent || null,
+        guardianName: opts.guardianName || null,
+        guardianPhone: opts.guardianPhone || null,
+        allergies: opts.allergies || null,
       });
-      if (!res.ok) throw new Error();
+      if (!ok) throw new Error();
+      if (data.alreadyIn) {
+        setSubmitting(false);
+        const firstName = opts.doneMsg?.replace('Welcome, ', '').replace('!', '') || 'You';
+        setAlreadyInModal({ firstName, attendanceId: data.attendanceId });
+        return;
+      }
+      code = data.pickupCode || '';
     } catch {
       setSubmitting(false);
       showToast('Could not save sign-in. Please see an usher.');
@@ -309,59 +271,19 @@ export default function Signin() {
     }
     setSubmitting(false);
     setDoneMsg(opts.doneMsg || 'You are signed in!');
-    setPickupCode(opts.pickupCode || '');
+    setPickupCode(code);
     setMode('done');
     touch();
   };
 
-  const signOut = async () => {
+  const signOut = () => {
     if (!selected) return;
-    setSubmitting(true);
     touch();
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const attRes = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
-      const todayRecords = ((await attRes.json()).records || []);
-
-      let recordId = selected.attendanceId || null;
-      let theRecord = null;
-      if (!recordId) {
-        theRecord = todayRecords.find(r => r.member_id === selected.id && !r.sign_out_time);
-        recordId = theRecord?.id || null;
-      } else {
-        theRecord = todayRecords.find(r => r.id === recordId);
-      }
-
-      if (recordId) {
-        const res = await fetch('/api/attendance', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: recordId, signOutTime: new Date().toISOString() }),
-        });
-        if (!res.ok) throw new Error();
-
-        let childCount = 0;
-        try {
-          const notes = typeof theRecord?.notes === 'string' ? JSON.parse(theRecord.notes) : (theRecord?.notes || {});
-          if (notes.role === 'guardian' && notes.familyCode) {
-            childCount = await signOutFamily(todayRecords, notes.familyCode);
-          }
-        } catch { /* ignore */ }
-
-        const msg = childCount > 0
-          ? `Goodbye, ${selected.first_name}! ${childCount} ${childCount === 1 ? 'child' : 'children'} also signed out.`
-          : `Goodbye, ${selected.first_name}! See you next time.`;
-        setDoneMsg(msg);
-      } else {
-        setDoneMsg(`${selected.first_name} was not signed in today.`);
-      }
-      signOutModeRef.current = false; setSignOutMode(false);
-      setMode('done');
-      touch();
-    } catch {
-      showToast('Could not sign out. Please see an usher.');
-    }
-    setSubmitting(false);
+    performSignOut({
+      attendanceId: selected.attendanceId || null,
+      memberId: selected.attendanceId ? null : selected.id,
+      firstName: selected.first_name,
+    });
   };
 
   if (!church) return (
@@ -717,9 +639,7 @@ export default function Signin() {
               </div>
             </div>
             <button onClick={() => {
-              const code = genCode();
-              const notes = JSON.stringify({ pickupCode: code, guardianName: childForm.guardianName, guardianPhone: childForm.guardianPhone, allergies: childForm.allergies });
-              signIn({ visitorName: childForm.childName, visitorType: 'child', notes, doneMsg: `${childForm.childName} is checked in!`, pickupCode: code });
+              signIn({ visitorName: childForm.childName, visitorType: 'child', guardianName: childForm.guardianName, guardianPhone: childForm.guardianPhone, allergies: childForm.allergies, doneMsg: `${childForm.childName} is checked in!` });
             }}
               disabled={submitting || !childForm.childName || !childForm.guardianName}
               style={{ width: '100%', background: !childForm.childName || !childForm.guardianName || submitting ? '#94a3b8' : '#8b5cf6', color: '#fff', border: 'none', borderRadius: 14, padding: '18px', fontSize: '1.05rem', fontWeight: 700, cursor: !childForm.childName || !childForm.guardianName || submitting ? 'not-allowed' : 'pointer', marginTop: 24 }}>
@@ -780,6 +700,34 @@ export default function Signin() {
         </div>
       )}
 
+      {/* Pick-up code modal: a child or family is only signed out with the code given at check-in */}
+      {codeModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 24 }}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: '32px 28px', maxWidth: 380, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: NAV, marginBottom: 10 }}>Enter your pick-up code</h2>
+            <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: 16 }}>
+              {codeModal.firstName}, please enter the 4-digit code you were given at check-in.
+            </p>
+            <input value={codeInput} onChange={e => { setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 4)); touch(); }}
+              inputMode="numeric" autoComplete="off" autoFocus placeholder="0000"
+              style={{ ...inp, textAlign: 'center', fontSize: '2rem', letterSpacing: 12, fontFamily: 'monospace', marginBottom: 12 }} />
+            {codeModal.error && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: 12 }}>{codeModal.error}</p>}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { setCodeModal(null); setCodeInput(''); }}
+                style={{ flex: 1, padding: '13px', border: '1.5px solid #e2e8f0', background: '#fff', borderRadius: 12, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', color: '#374151' }}>
+                Cancel
+              </button>
+              <button onClick={() => performSignOut({ attendanceId: codeModal.attendanceId, memberId: codeModal.memberId, firstName: codeModal.firstName, code: codeInput })}
+                disabled={submitting || codeInput.length < 4}
+                style={{ flex: 1, padding: '13px', border: 'none', background: submitting || codeInput.length < 4 ? '#94a3b8' : NAV, borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: submitting || codeInput.length < 4 ? 'not-allowed' : 'pointer', color: '#fff' }}>
+                <i className="fas fa-sign-out-alt" style={{ marginRight: 8 }} />Sign Out
+              </button>
+            </div>
+            <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginTop: 14 }}>Lost your code? Please see a children&apos;s leader.</p>
+          </div>
+        </div>
+      )}
+
       {/* Already signed in modal */}
       {alreadyInModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 24 }}>
@@ -796,7 +744,7 @@ export default function Signin() {
                 style={{ flex: 1, padding: '13px', border: '1.5px solid #e2e8f0', background: '#fff', borderRadius: 12, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', color: '#374151' }}>
                 Cancel
               </button>
-              <button onClick={() => { const m = alreadyInModal; setAlreadyInModal(null); signOutById(m.attendanceId, m.firstName); }}
+              <button onClick={() => { const m = alreadyInModal; setAlreadyInModal(null); performSignOut({ attendanceId: m.attendanceId, firstName: m.firstName }); }}
                 style={{ flex: 1, padding: '13px', border: 'none', background: NAV, borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer', color: '#fff' }}>
                 <i className="fas fa-sign-out-alt" style={{ marginRight: 8 }} />Sign Out Now
               </button>

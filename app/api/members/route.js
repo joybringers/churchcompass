@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { verifyToken } from '@/lib/auth';
+import { adminFromRequest, cleanSearch } from '@/lib/guard';
 
-async function auth(req) {
-  const token = (req.headers.get('Authorization') || '').replace('Bearer ', '');
-  return verifyToken(token);
-}
-
+// Full member records are for church admins only. The kiosk uses /api/kiosk,
+// which only returns names.
 export async function GET(req) {
+  const payload = await adminFromRequest(req);
+  if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const churchId = searchParams.get('churchId');
-  const search = searchParams.get('search');
   if (!churchId) return NextResponse.json({ error: 'churchId required' }, { status: 400 });
+  if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
 
+  const search = cleanSearch(searchParams.get('search'));
   let query = supabase.from('cc_members').select('*').eq('church_id', churchId).eq('is_active', true).order('last_name');
   if (search) query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
   const { data, error } = await query;
@@ -21,7 +22,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const payload = await auth(req);
+  const payload = await adminFromRequest(req);
   if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   const { churchId, firstName, lastName, email, phone, dob, memberType, notes } = await req.json();
   if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
@@ -31,7 +32,7 @@ export async function POST(req) {
 }
 
 export async function PUT(req) {
-  const payload = await auth(req);
+  const payload = await adminFromRequest(req);
   if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   const { id, churchId, firstName, lastName, email, phone, dob, memberType, notes } = await req.json();
   if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
@@ -41,7 +42,7 @@ export async function PUT(req) {
 }
 
 export async function DELETE(req) {
-  const payload = await auth(req);
+  const payload = await adminFromRequest(req);
   if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
