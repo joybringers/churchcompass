@@ -32,14 +32,30 @@ export default function Signin() {
   const [submitting, setSubmitting] = useState(false);
   const [idleCountdown, setIdleCountdown] = useState(IDLE_SECS);
   const [fullscreen, setFullscreen] = useState(false);
+  const [clock, setClock] = useState('');
+  const [clockDate, setClockDate] = useState('');
+  const [toast, setToast] = useState(null);
+  const [alreadyInModal, setAlreadyInModal] = useState(null);
   const idleRef = useRef(null);
   const countdownRef = useRef(null);
   const searchRef = useRef(null);
   const rootRef = useRef(null);
+  const toastTimerRef = useRef(null);
 
   useEffect(() => {
     fetch(`/api/churches?slug=${slug}`).then(r => r.json()).then(d => setChurch(d.church));
   }, [slug]);
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setClock(now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+      setClockDate(now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (!church) return;
@@ -70,6 +86,31 @@ export default function Signin() {
   const touch = useCallback(() => {
     if (mode !== 'home') startIdleTimer();
   }, [mode, startIdleTimer]);
+
+  const showToast = useCallback((msg, type = 'error') => {
+    setToast({ msg, type });
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  const signOutById = useCallback(async (attendanceId, firstName) => {
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: attendanceId, signOutTime: new Date().toISOString() }),
+      });
+      if (!res.ok) throw new Error();
+      setDoneMsg(`Goodbye, ${firstName}! See you next time.`);
+      setPickupCode('');
+      setMode('done');
+      touch();
+    } catch {
+      showToast('Could not sign out. Please see an usher.');
+    }
+    setSubmitting(false);
+  }, [touch, showToast]);
 
   useEffect(() => {
     if (mode !== 'home') { startIdleTimer(); }
@@ -127,18 +168,38 @@ export default function Signin() {
   const signIn = async (opts = {}) => {
     setSubmitting(true);
     touch();
-    await fetch('/api/attendance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        churchId: church.id,
-        memberId: opts.memberId || null,
-        visitorName: opts.visitorName || null,
-        visitorType: opts.visitorType || 'adult',
-        eventId: selectedEvent || null,
-        notes: opts.notes || null,
-      }),
-    });
+    try {
+      // Already-signed-in check for members
+      if (opts.memberId) {
+        const today = new Date().toISOString().split('T')[0];
+        const chk = await fetch(`/api/attendance?churchId=${church.id}&memberId=${opts.memberId}&from=${today}&to=${today}`);
+        const chkData = await chk.json();
+        const open = (chkData.records || []).find(r => !r.sign_out_time);
+        if (open) {
+          setSubmitting(false);
+          const firstName = opts.doneMsg?.replace('Welcome, ', '').replace('!', '') || 'You';
+          setAlreadyInModal({ firstName, attendanceId: open.id });
+          return;
+        }
+      }
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          churchId: church.id,
+          memberId: opts.memberId || null,
+          visitorName: opts.visitorName || null,
+          visitorType: opts.visitorType || 'adult',
+          eventId: selectedEvent || null,
+          notes: opts.notes || null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setSubmitting(false);
+      showToast('Could not save sign-in. Please see an usher.');
+      return;
+    }
     setSubmitting(false);
     setDoneMsg(opts.doneMsg || 'You are signed in!');
     setPickupCode(opts.pickupCode || '');
@@ -150,26 +211,31 @@ export default function Signin() {
     if (!selected) return;
     setSubmitting(true);
     touch();
-    let recordId = selected.attendanceId || null;
-    if (!recordId) {
-      const today = new Date().toISOString().split('T')[0];
-      const res = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
-      const d = await res.json();
-      const record = (d.records || []).find(r => r.member_id === selected.id && !r.sign_out_time);
-      recordId = record?.id || null;
-    }
-    if (recordId) {
-      await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: recordId, signOutTime: new Date().toISOString() }),
-      });
+    try {
+      let recordId = selected.attendanceId || null;
+      if (!recordId) {
+        const today = new Date().toISOString().split('T')[0];
+        const res = await fetch(`/api/attendance?churchId=${church.id}&from=${today}&to=${today}`);
+        const d = await res.json();
+        const record = (d.records || []).find(r => r.member_id === selected.id && !r.sign_out_time);
+        recordId = record?.id || null;
+      }
+      if (recordId) {
+        const res = await fetch('/api/attendance', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: recordId, signOutTime: new Date().toISOString() }),
+        });
+        if (!res.ok) throw new Error();
+      }
+      setDoneMsg(recordId ? `Goodbye, ${selected.first_name}! See you next time.` : `${selected.first_name} was not signed in today.`);
+      signOutModeRef.current = false; setSignOutMode(false);
+      setMode('done');
+      touch();
+    } catch {
+      showToast('Could not sign out. Please see an usher.');
     }
     setSubmitting(false);
-    setDoneMsg(recordId ? `Goodbye, ${selected.first_name}! See you next time.` : `${selected.first_name} was not signed in today.`);
-    signOutModeRef.current = false; setSignOutMode(false);
-    setMode('done');
-    touch();
   };
 
   if (!church) return (
@@ -198,11 +264,19 @@ export default function Signin() {
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>{church.name}</div>
           </div>
         </div>
-        <button onClick={toggleFullscreen}
-          style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
-          <i className={`fas fa-${fullscreen ? 'compress' : 'expand'}`} style={{ marginRight: 6 }} />
-          {fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {clock && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: '#fff', fontWeight: 700, fontSize: '1.2rem', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{clock}</div>
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', marginTop: 2 }}>{clockDate}</div>
+            </div>
+          )}
+          <button onClick={toggleFullscreen}
+            style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
+            <i className={`fas fa-${fullscreen ? 'compress' : 'expand'}`} style={{ marginRight: 6 }} />
+            {fullscreen ? 'Exit' : 'Fullscreen'}
+          </button>
+        </div>
       </div>
 
       {/* Idle warning */}
@@ -452,6 +526,38 @@ export default function Signin() {
       <div style={{ marginTop: 20, color: 'rgba(255,255,255,0.3)', fontSize: '0.7rem' }}>
         Powered by <a href="https://elmorilx.com" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'none' }}>Elmoril</a>
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: toast.type === 'error' ? '#dc2626' : '#1e3a5f', color: '#fff', padding: '12px 24px', borderRadius: 50, fontSize: '0.9rem', fontWeight: 600, zIndex: 100, boxShadow: '0 4px 24px rgba(0,0,0,0.3)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+          <i className={`fas fa-${toast.type === 'error' ? 'circle-xmark' : 'circle-check'}`} style={{ marginRight: 8 }} />{toast.msg}
+        </div>
+      )}
+
+      {/* Already signed in modal */}
+      {alreadyInModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 24 }}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: '32px 28px', maxWidth: 380, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <i className="fas fa-exclamation-triangle" style={{ fontSize: 24, color: '#d97706' }} />
+            </div>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: NAV, marginBottom: 10 }}>Already Signed In</h2>
+            <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: 24 }}>
+              {alreadyInModal.firstName}, you are already signed in today.<br />Would you like to sign out instead?
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setAlreadyInModal(null)}
+                style={{ flex: 1, padding: '13px', border: '1.5px solid #e2e8f0', background: '#fff', borderRadius: 12, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', color: '#374151' }}>
+                Cancel
+              </button>
+              <button onClick={() => { const m = alreadyInModal; setAlreadyInModal(null); signOutById(m.attendanceId, m.firstName); }}
+                style={{ flex: 1, padding: '13px', border: 'none', background: NAV, borderRadius: 12, fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer', color: '#fff' }}>
+                <i className="fas fa-sign-out-alt" style={{ marginRight: 8 }} />Sign Out Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
