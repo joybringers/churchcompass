@@ -19,14 +19,14 @@ export async function GET(req) {
   if (data && data.length > 0) {
     const ids = data.map(ft => ft.id);
     const { data: cvData } = await supabase.from('cc_custom_field_values')
-      .select('record_id, value, field_id, cc_custom_fields(label)')
+      .select('record_id, value, field_id, cc_custom_fields(field_label)')
       .eq('record_type', 'first_timer')
       .in('record_id', ids);
     if (cvData) {
       const byRecord = {};
       cvData.forEach(cv => {
         if (!byRecord[cv.record_id]) byRecord[cv.record_id] = [];
-        byRecord[cv.record_id].push({ label: cv.cc_custom_fields?.label, value: cv.value });
+        byRecord[cv.record_id].push({ label: cv.cc_custom_fields?.field_label, value: cv.value });
       });
       data.forEach(ft => { ft.customValues = byRecord[ft.id] || []; });
     }
