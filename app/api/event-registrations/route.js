@@ -43,12 +43,28 @@ export async function POST(req) {
     const { data: ev } = await supabase.from('cc_events').select('id').eq('id', eventId).eq('church_id', churchId).maybeSingle();
     if (!ev) return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
 
+    // Prevent duplicate registration for same event
+    const cleanEmail = cleanText(email, 200) || null;
+    const cleanPhone = cleanText(phone, 40) || null;
+    const cleanName2 = cleanText(name, 120);
+
+    let dupQuery = supabase.from('cc_event_registrations')
+      .select('id').eq('church_id', churchId).eq('event_id', eventId);
+
+    if (cleanEmail) {
+      dupQuery = dupQuery.eq('email', cleanEmail.toLowerCase());
+    } else {
+      dupQuery = dupQuery.ilike('name', cleanName2);
+    }
+    const { data: dup } = await dupQuery.maybeSingle();
+    if (dup) return NextResponse.json({ error: 'already_registered' }, { status: 409 });
+
     const { error } = await supabase.from('cc_event_registrations').insert({
       church_id: churchId,
       event_id: eventId,
       name: cleanName,
-      email: cleanText(email, 200) || null,
-      phone: cleanText(phone, 40) || null,
+      email: cleanEmail,
+      phone: cleanPhone,
     });
     if (error) return NextResponse.json({ error: 'Could not save registration.' }, { status: 500 });
     return NextResponse.json({ ok: true });

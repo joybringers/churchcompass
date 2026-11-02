@@ -6,6 +6,8 @@ import { useParams } from 'next/navigation';
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 
+import { useSearchParams } from 'next/navigation';
+
 const BLANK_FIELD = { formType: 'first_timer', fieldLabel: '', fieldName: '', fieldType: 'text', fieldOptions: '', isRequired: false };
 
 export default function Settings() {
@@ -15,8 +17,11 @@ export default function Settings() {
   const [qrSignin, setQrSignin] = useState('');
   const [qrChildren, setQrChildren] = useState('');
   const [qrCheckin, setQrCheckin] = useState('');
+  const searchParams = useSearchParams();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [upgradedBanner, setUpgradedBanner] = useState(searchParams?.get('upgraded') === '1');
   const [customFields, setCustomFields] = useState([]);
   const [fieldModal, setFieldModal] = useState(null);
   const [fieldForm, setFieldForm] = useState(BLANK_FIELD);
@@ -75,6 +80,22 @@ export default function Settings() {
     load();
   };
 
+  const startCheckout = async () => {
+    setBillingLoading(true);
+    const res = await fetch('/api/stripe/checkout', { method: 'POST', headers: { 'Authorization': `Bearer ${ctx.token}` } });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else { alert(data.error || 'Could not start checkout.'); setBillingLoading(false); }
+  };
+
+  const openPortal = async () => {
+    setBillingLoading(true);
+    const res = await fetch('/api/stripe/portal', { method: 'POST', headers: { 'Authorization': `Bearer ${ctx.token}` } });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else { alert(data.error || 'Could not open billing portal.'); setBillingLoading(false); }
+  };
+
   const inp = { padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.95rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
   const lbl = { fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 3 };
 
@@ -106,6 +127,57 @@ export default function Settings() {
             {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Changes'}
           </button>
         </form>
+      </div>
+
+      {/* PLAN & BILLING */}
+      {upgradedBanner && (
+        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <i className="fas fa-circle-check" style={{ color: '#16a34a', fontSize: 18 }} />
+          <span style={{ color: '#166534', fontWeight: 600, fontSize: '0.9rem' }}>Welcome to Pro! All features are now unlocked.</span>
+          <button onClick={() => setUpgradedBanner(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+      )}
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 28 }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>Plan & Billing</h2>
+        {(() => {
+          const plan = ctx.church?.plan || 'free';
+          const isPro = plan === 'pro' || plan === 'custom';
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <span style={{ background: isPro ? '#fef3c7' : '#f1f5f9', color: isPro ? '#b45309' : '#475569', fontWeight: 800, fontSize: '0.8rem', padding: '3px 12px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {plan === 'custom' ? 'Custom' : isPro ? 'Pro' : 'Free'}
+                  </span>
+                  {!isPro && <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>100 member limit · basic features</span>}
+                  {isPro && <span style={{ fontSize: '0.8rem', color: '#16a34a' }}>Unlimited members · all features unlocked</span>}
+                </div>
+                {!isPro && (
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+                    Upgrade to Pro for £19/month to unlock unlimited members, CSV export, custom fields and more.
+                  </p>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {!isPro && (
+                  <button onClick={startCheckout} disabled={billingLoading}
+                    style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: billingLoading ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
+                    {billingLoading ? 'Loading…' : 'Upgrade to Pro →'}
+                  </button>
+                )}
+                {isPro && ctx.church?.stripe_customer_id && plan !== 'custom' && (
+                  <button onClick={openPortal} disabled={billingLoading}
+                    style={{ background: '#f1f5f9', color: NAV, border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: billingLoading ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
+                    {billingLoading ? 'Loading…' : 'Manage billing'}
+                  </button>
+                )}
+                <a href="/pricing" target="_blank" style={{ background: '#f8fafc', color: '#64748b', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'none' }}>
+                  View plans
+                </a>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 28 }}>

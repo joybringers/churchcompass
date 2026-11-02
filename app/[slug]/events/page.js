@@ -79,6 +79,10 @@ export default function PublicEvents() {
           phone: form.phone,
         }),
       });
+      if (res.status === 409) {
+        setError("You're already registered for this event.");
+        setSubmitting(false); return;
+      }
       if (!res.ok) throw new Error('Registration failed');
       setDone(true);
     } catch {

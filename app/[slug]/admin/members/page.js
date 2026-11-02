@@ -6,6 +6,7 @@ const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 
 const BLANK = { firstName: '', lastName: '', email: '', phone: '', dob: '', memberType: 'adult', notes: '' };
+const FREE_LIMIT = 100;
 
 export default function Members() {
   const ctx = useCC();
@@ -27,7 +28,14 @@ export default function Members() {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const openAdd = () => { setForm(BLANK); setModal('add'); };
+  const openAdd = () => {
+    const plan = ctx?.church?.plan || 'free';
+    if (plan === 'free' && members.length >= FREE_LIMIT) {
+      window.location.href = `/${ctx.slug}/admin/settings`;
+      return;
+    }
+    setForm(BLANK); setModal('add');
+  };
   const openEdit = (m) => { setForm({ firstName: m.first_name, lastName: m.last_name, email: m.email || '', phone: m.phone || '', dob: m.dob || '', memberType: m.member_type, notes: m.notes || '' }); setModal(m); };
 
   const save = async () => {
@@ -120,6 +128,20 @@ export default function Members() {
           </button>
         </div>
       </div>
+
+      {/* Free tier limit banner */}
+      {(ctx?.church?.plan || 'free') === 'free' && members.length >= FREE_LIMIT && (
+        <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 12, padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <i className="fas fa-lock" style={{ color: '#d97706', fontSize: 16 }} />
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 700, color: '#92400e', fontSize: '0.875rem' }}>Member limit reached ({FREE_LIMIT} on Free). </span>
+            <span style={{ color: '#b45309', fontSize: '0.875rem' }}>Upgrade to Pro to add unlimited members.</span>
+          </div>
+          <a href={`/${ctx.slug}/admin/settings`} style={{ background: '#d97706', color: '#fff', borderRadius: 8, padding: '7px 16px', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            Upgrade →
+          </a>
+        </div>
+      )}
 
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search members…"
         style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: '0.95rem', marginBottom: 16, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#fff' }} />
