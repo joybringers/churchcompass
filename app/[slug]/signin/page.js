@@ -40,8 +40,6 @@ export default function Signin() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [events, setEvents] = useState([]);
-  const [selectedEvent, setSelectedEvent] = useState('');
   const [visitorForm, setVisitorForm] = useState({ name: '', type: 'adult' });
   const [childForm, setChildForm] = useState({ childName: '', guardianName: '', guardianPhone: '', allergies: '' });
   const [pickupCode, setPickupCode] = useState('');
@@ -83,11 +81,6 @@ export default function Signin() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    if (!church) return;
-    const today = new Date().toISOString().split('T')[0];
-    fetch(`/api/events?churchId=${church.id}&date=${today}`).then(r => r.json()).then(d => setEvents(d.events || []));
-  }, [church]);
 
   const resetKiosk = useCallback(() => {
     clearTimeout(idleRef.current);
@@ -210,7 +203,6 @@ export default function Signin() {
         action: 'family-checkin',
         guardianName: guardianForm.name,
         guardianPhone: guardianForm.phone,
-        eventId: selectedEvent || null,
         children: allChildren.map(c => ({ name: c.name, group: c.group || '' })),
       });
       if (!ok) throw new Error();
@@ -251,7 +243,6 @@ export default function Signin() {
         memberId: opts.memberId || null,
         visitorName: opts.visitorName || null,
         visitorType: opts.visitorType || 'adult',
-        eventId: selectedEvent || null,
         guardianName: opts.guardianName || null,
         guardianPhone: opts.guardianPhone || null,
         allergies: opts.allergies || null,
@@ -354,17 +345,6 @@ export default function Signin() {
               ))}
             </div>
 
-            {/* Event selector */}
-            {events.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <label style={lbl}>Today's event (optional)</label>
-                <select value={selectedEvent} onChange={e => { setSelectedEvent(e.target.value); touch(); }}
-                  style={{ ...inp, fontSize: '0.95rem' }}>
-                  <option value="">No specific event</option>
-                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-                </select>
-              </div>
-            )}
 
             {tab === 0 && (
               <button onClick={() => { signOutModeRef.current = false; setSignOutMode(false); setMode('search'); setTimeout(() => searchRef.current?.focus(), 100); }}

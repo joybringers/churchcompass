@@ -23,10 +23,10 @@ export default function Events() {
     fetch(`/api/events?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => {
       const sorted = (d.events || []).sort((a, b) => new Date(b.event_date) - new Date(a.event_date));
       setEvents(sorted);
-      // load rsvp counts for each event
+      // load registration counts for each event
       sorted.forEach(ev => {
-        fetch(`/api/attendance?churchId=${church.id}&eventId=${ev.id}&visitorType=rsvp`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(r => r.json()).then(a => setRsvpCounts(prev => ({ ...prev, [ev.id]: (a.records || []).length })));
+        fetch(`/api/event-registrations?churchId=${church.id}&eventId=${ev.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => r.json()).then(a => setRsvpCounts(prev => ({ ...prev, [ev.id]: (a.registrations || []).length })));
       });
     });
   };

@@ -38,12 +38,12 @@ export default function Reports() {
       fetch(`/api/attendance?churchId=${church.id}&from=${from}&to=${to}`, { headers: h }).then(r => r.json()),
       fetch(`/api/first-timers?churchId=${church.id}`, { headers: h }).then(r => r.json()),
       fetch(`/api/events?churchId=${church.id}`, { headers: h }).then(r => r.json()),
-      fetch(`/api/attendance?churchId=${church.id}&visitorType=rsvp`, { headers: h }).then(r => r.json()),
-    ]).then(([att, ft, ev, rsvpData]) => {
+      fetch(`/api/event-registrations?churchId=${church.id}`, { headers: h }).then(r => r.json()),
+    ]).then(([att, ft, ev, regData]) => {
       setRecords(att.records || []);
       setFirstTimers(ft.firstTimers || []);
       setEvents(ev.events || []);
-      setRsvps(rsvpData.records || []);
+      setRsvps(regData.registrations || []);
       setLoading(false);
     });
   }, [ctx]);
@@ -163,7 +163,7 @@ export default function Reports() {
               <tbody>
                 {events.slice(0, 20).map(ev => {
                   const evRsvps = rsvps.filter(r => r.event_id === ev.id);
-                  const attended = evRsvps.filter(r => r.sign_out_time).length;
+                  const attended = evRsvps.filter(r => r.attended_at).length;
                   const walkInCount = (eventMap[ev.id]?.count || 0);
                   const noShow = evRsvps.length - attended;
                   return (

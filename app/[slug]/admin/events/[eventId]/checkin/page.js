@@ -6,10 +6,6 @@ import { useCC } from '../../../layout';
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 
-function parseNotes(raw) {
-  try { return JSON.parse(raw) || {}; } catch { return {}; }
-}
-
 export default function EventCheckin() {
   const ctx = useCC();
   const { eventId } = useParams();
@@ -28,15 +24,15 @@ export default function EventCheckin() {
     const { church, token } = ctx;
     const h = { 'Authorization': `Bearer ${token}` };
 
-    const [evRes, rsvpRes, walkRes] = await Promise.all([
+    const [evRes, regRes, walkRes] = await Promise.all([
       fetch(`/api/events?churchId=${church.id}`, { headers: h }).then(r => r.json()),
-      fetch(`/api/attendance?churchId=${church.id}&eventId=${eventId}&visitorType=rsvp`, { headers: h }).then(r => r.json()),
+      fetch(`/api/event-registrations?churchId=${church.id}&eventId=${eventId}`, { headers: h }).then(r => r.json()),
       fetch(`/api/attendance?churchId=${church.id}&eventId=${eventId}`, { headers: h }).then(r => r.json()),
     ]);
 
     const ev = (evRes.events || []).find(e => e.id === eventId);
     setEvent(ev || null);
-    setRsvps(rsvpRes.records || []);
+    setRsvps(regRes.registrations || []);
     setWalkIns(walkRes.records || []);
     setLoading(false);
   };
@@ -45,10 +41,10 @@ export default function EventCheckin() {
 
   const toggleAttended = async (record) => {
     setToggling(record.id);
-    await fetch('/api/attendance', {
+    await fetch('/api/event-registrations', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ctx.token}` },
-      body: JSON.stringify({ id: record.id, attended: !record.sign_out_time }),
+      body: JSON.stringify({ id: record.id, attended: !record.attended_at }),
     });
     setToggling(null);
     load();
@@ -69,7 +65,7 @@ export default function EventCheckin() {
 
   if (!ctx || loading) return <div style={{ padding: '32px 28px', color: '#64748b' }}>Loading…</div>;
 
-  const attended = rsvps.filter(r => r.sign_out_time).length;
+  const attended = rsvps.filter(r => r.attended_at).length;
   const registered = rsvps.length;
   const noShow = registered - attended;
 
@@ -115,18 +111,17 @@ export default function EventCheckin() {
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {rsvps.map(r => {
-            const n = parseNotes(r.notes);
-            const isAttended = !!r.sign_out_time;
+            const isAttended = !!r.attended_at;
             return (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, background: isAttended ? '#f0fdf4' : '#f8fafc', border: `1.5px solid ${isAttended ? '#bbf7d0' : '#e2e8f0'}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 36, height: 36, borderRadius: '50%', background: isAttended ? '#16a34a' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isAttended ? '#fff' : '#94a3b8', fontSize: '0.75rem', fontWeight: 700 }}>
-                    {isAttended ? '✓' : (r.visitor_name?.[0] || '?').toUpperCase()}
+                    {isAttended ? '✓' : (r.name?.[0] || '?').toUpperCase()}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9rem' }}>{r.visitor_name || '—'}</div>
-                    {(n.email || n.phone) && (
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{n.email || ''}{n.email && n.phone ? ' · ' : ''}{n.phone || ''}</div>
+                    <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9rem' }}>{r.name || '—'}</div>
+                    {(r.email || r.phone) && (
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{r.email || ''}{r.email && r.phone ? ' · ' : ''}{r.phone || ''}</div>
                     )}
                   </div>
                 </div>

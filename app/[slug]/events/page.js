@@ -68,15 +68,15 @@ export default function PublicEvents() {
     e.preventDefault();
     setSubmitting(true); setError('');
     try {
-      const res = await fetch('/api/attendance', {
+      const res = await fetch('/api/event-registrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           churchId: church.id,
-          visitorName: `${form.firstName} ${form.lastName}`.trim(),
-          visitorType: 'rsvp',
           eventId: selected.id,
-          notes: JSON.stringify({ email: form.email, phone: form.phone, rsvp: true }),
+          name: `${form.firstName} ${form.lastName}`.trim(),
+          email: form.email,
+          phone: form.phone,
         }),
       });
       if (!res.ok) throw new Error('Registration failed');

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { adminFromRequest, cleanText, parseNotes, VISITOR_TYPES } from '@/lib/guard';
+import { adminFromRequest, cleanText, VISITOR_TYPES } from '@/lib/guard';
 
 // Reading and changing attendance records is for signed-in church admins only,
 // and only for their own church. The kiosk uses /api/kiosk instead.
@@ -50,19 +50,9 @@ export async function POST(req) {
     const payload = await adminFromRequest(req);
     const isAdmin = !!payload && payload.churchId === churchId;
 
-    // Anyone else may only register for an event (RSVP). Everything else
-    // (kiosk check-in, children's check-in) goes through /api/kiosk.
-    if (!isAdmin) {
-      if (visitorType !== 'rsvp' || !eventId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
-      if (!(await belongsToChurch('cc_events', eventId, churchId))) return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
-      const name = cleanText(visitorName, 120);
-      if (!name) return NextResponse.json({ error: 'A name is required.' }, { status: 400 });
-      const n = parseNotes(notes);
-      const safeNotes = JSON.stringify({ email: cleanText(n.email, 200) || '', phone: cleanText(n.phone, 40) || '', rsvp: true });
-      const { error } = await supabase.from('cc_attendance').insert({ church_id: churchId, event_id: eventId, visitor_name: name, visitor_type: 'rsvp', notes: safeNotes });
-      if (error) return NextResponse.json({ error: 'Could not save your registration.' }, { status: 500 });
-      return NextResponse.json({ ok: true });
-    }
+    // Unauthenticated requests are no longer allowed here.
+    // Event registrations (RSVPs) use /api/event-registrations instead.
+    if (!isAdmin) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
 
     const type = visitorType || 'member';
     if (![...VISITOR_TYPES, 'rsvp'].includes(type)) return NextResponse.json({ error: 'Invalid visitor type.' }, { status: 400 });
