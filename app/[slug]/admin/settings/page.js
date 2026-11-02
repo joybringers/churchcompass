@@ -14,6 +14,7 @@ export default function Settings() {
   const [churchForm, setChurchForm] = useState(null);
   const [qrSignin, setQrSignin] = useState('');
   const [qrChildren, setQrChildren] = useState('');
+  const [qrCheckin, setQrCheckin] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [customFields, setCustomFields] = useState([]);
@@ -36,6 +37,7 @@ export default function Settings() {
     import('qrcode').then(QRCode => {
       QRCode.default.toDataURL(`${base}/${slug}/signin`, { width: 220, margin: 1 }).then(setQrSignin);
       QRCode.default.toDataURL(`${base}/${slug}/children-checkin`, { width: 220, margin: 1 }).then(setQrChildren);
+      QRCode.default.toDataURL(`${base}/${slug}/checkin`, { width: 220, margin: 1 }).then(setQrCheckin);
     });
   }, [slug]);
 
@@ -113,10 +115,11 @@ export default function Settings() {
             <i className="fas fa-print" style={{ marginRight: 6 }} />Print QR Codes
           </button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 24 }}>
           {[
             { label: 'Sign-In Kiosk', url: `https://churchcompass.elmorilx.com/${slug}/signin`, qr: qrSignin },
             { label: 'Children Check-In', url: `https://churchcompass.elmorilx.com/${slug}/children-checkin`, qr: qrChildren },
+            { label: 'Event Check-In', url: `https://churchcompass.elmorilx.com/${slug}/checkin`, qr: qrCheckin },
           ].map(({ label, url, qr }) => (
             <div key={label} style={{ textAlign: 'center', background: '#f8fafc', borderRadius: 12, padding: '20px 16px' }}>
               <div style={{ fontWeight: 700, color: NAV, marginBottom: 12, fontSize: '0.9rem' }}>{label}</div>
