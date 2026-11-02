@@ -17,10 +17,16 @@ export default function Landing() {
             CHURCH<span style={{ color: GOLD }}>COMPASS</span>
           </span>
         </div>
-        <button onClick={() => router.push('/register')}
-          style={{ background: GOLD, color: NAV, border: 'none', borderRadius: 8, padding: '9px 20px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
-          Register Your Church
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => router.push('/login')}
+            style={{ background: 'transparent', color: '#fff', border: '1.5px solid rgba(255,255,255,0.4)', borderRadius: 8, padding: '9px 20px', fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}>
+            Sign In
+          </button>
+          <button onClick={() => router.push('/register')}
+            style={{ background: GOLD, color: NAV, border: 'none', borderRadius: 8, padding: '9px 20px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
+            Register Your Church
+          </button>
+        </div>
       </header>
 
       <section style={{ background: `linear-gradient(135deg, ${NAV} 0%, #2d5282 100%)`, padding: '80px 32px', textAlign: 'center', color: '#fff', flex: 1 }}>
