@@ -18,6 +18,7 @@ export default function Events() {
   const [filterEvent, setFilterEvent] = useState('');
   const [filterAttended, setFilterAttended] = useState('');
   const [regLoading, setRegLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
 
   const load = () => {
     if (!ctx) return;
@@ -68,6 +69,20 @@ export default function Events() {
     if (!confirm('Delete this event?')) return;
     await fetch(`/api/events?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${ctx.token}` } });
     load();
+  };
+
+  const toggleAttended = async (reg) => {
+    setTogglingId(reg.id);
+    const { token } = ctx;
+    await fetch('/api/event-registrations', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ id: reg.id, attended: !reg.attended_at }),
+    });
+    setRegistrations(prev => prev.map(r =>
+      r.id === reg.id ? { ...r, attended_at: reg.attended_at ? null : new Date().toISOString() } : r
+    ));
+    setTogglingId(null);
   };
 
   const exportCSV = () => {
@@ -178,7 +193,7 @@ export default function Events() {
                       {rsvpCounts[ev.id]} RSVP{rsvpCounts[ev.id] !== 1 ? 's' : ''}
                     </span>
                   )}
-                  <button onClick={() => window.open(`/${ctx.slug}/admin/events/${ev.id}/checkin`, '_blank')}
+                  <button onClick={() => { setFilterEvent(ev.name); setTab('registrations'); }}
                     style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>
                     <i className="fas fa-check-circle" style={{ marginRight: 5 }} />Check-in
                   </button>
@@ -250,10 +265,14 @@ export default function Events() {
                               {new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                             </td>
                             <td style={{ ...tdStyle, textAlign: 'center' }}>
-                              <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 700,
-                                background: attended ? '#dcfce7' : '#f1f5f9', color: attended ? '#16a34a' : '#94a3b8' }}>
-                                {attended ? 'Yes' : 'No'}
-                              </span>
+                              <button
+                                onClick={() => toggleAttended(r)}
+                                disabled={togglingId === r.id}
+                                style={{ padding: '5px 14px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 700, border: 'none', cursor: togglingId === r.id ? 'wait' : 'pointer',
+                                  background: attended ? '#dcfce7' : '#f1f5f9', color: attended ? '#16a34a' : '#94a3b8',
+                                  transition: 'background 0.15s, color 0.15s' }}>
+                                {togglingId === r.id ? '…' : attended ? 'Yes' : 'No'}
+                              </button>
                             </td>
                           </tr>
                         );
