@@ -77,18 +77,11 @@ export default function Landing() {
       </section>
 
       <section style={{ background: NAV, padding: '40px 32px', textAlign: 'center' }}>
-        <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: 12 }}>Already registered? Enter your church slug to continue:</p>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input id="slugInput" placeholder="your-church-slug" style={{ padding: '10px 14px', borderRadius: 8, border: 'none', fontSize: '0.95rem', width: 220 }} />
-          <button onClick={() => { const s = document.getElementById('slugInput').value.trim().toLowerCase(); if (s) router.push(`/${s}/admin`); }}
-            style={{ background: GOLD, color: NAV, border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, cursor: 'pointer' }}>
-            Admin
-          </button>
-          <button onClick={() => { const s = document.getElementById('slugInput').value.trim().toLowerCase(); if (s) router.push(`/${s}/signin`); }}
-            style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 8, padding: '10px 20px', fontWeight: 600, cursor: 'pointer' }}>
-            Kiosk
-          </button>
-        </div>
+        <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: 20 }}>Already have an account?</p>
+        <button onClick={() => router.push('/login')}
+          style={{ background: GOLD, color: NAV, border: 'none', borderRadius: 10, padding: '14px 36px', fontWeight: 700, cursor: 'pointer', fontSize: '1rem' }}>
+          Sign In to Your Church
+        </button>
       </section>
 
       <footer style={{ background: '#0f1f35', padding: '20px 32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
