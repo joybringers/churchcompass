@@ -159,6 +159,8 @@ export default function ElmorilAdmin() {
             { label: 'Sign-ins This Week', value: T.signInsThisWeek.toLocaleString(), sub: 'last 7 days', accent: '#0891b2' },
             { label: 'All-time Sign-ins', value: T.totalSignIns.toLocaleString(), sub: 'across all churches', accent: '#059669' },
             { label: 'Total Members', value: T.totalMembers.toLocaleString(), sub: 'active records', accent: GOLD },
+            { label: 'First Timers', value: (T.totalFirstTimers || 0).toLocaleString(), sub: 'all time', accent: '#e11d48' },
+            { label: 'Events Created', value: (T.totalEvents || 0).toLocaleString(), sub: 'across all churches', accent: '#d97706' },
           ].map(({ label, value, sub, accent }) => (
             <div key={label} style={{ background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 16, padding: '20px 20px', borderTop: `3px solid ${accent}` }}>
               <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 10 }}>{label}</div>
@@ -208,12 +210,15 @@ export default function ElmorilAdmin() {
                   <th style={th} onClick={() => toggleSort('signInsThisWeek')}>Week {sort === 'signInsThisWeek' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
                   <th style={th} onClick={() => toggleSort('signInsThisMonth')}>Month {sort === 'signInsThisMonth' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
                   <th style={th} onClick={() => toggleSort('totalSignIns')}>Total {sort === 'totalSignIns' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                  <th style={{...th, borderLeft: '2px solid #e2e8f0'}} onClick={() => toggleSort('firstTimerCount')}>1st Timers {sort === 'firstTimerCount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                  <th style={th} onClick={() => toggleSort('eventCount')}>Events {sort === 'eventCount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                  <th style={th} onClick={() => toggleSort('rsvpCount')}>RSVPs {sort === 'rsvpCount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
                   <th style={th}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
-                  <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>No churches match.</td></tr>
+                  <tr><td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>No churches match.</td></tr>
                 ) : rows.map(c => (
                   <tr key={c.id} style={{ transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.background='#f8fafc'} onMouseLeave={e => e.currentTarget.style.background=''}>
                     <td style={td({ fontWeight: 700 })}>
@@ -229,6 +234,9 @@ export default function ElmorilAdmin() {
                     <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', fontWeight: c.signInsThisWeek > 0 ? 700 : 400, color: c.signInsThisWeek > 0 ? NAV : '#94a3b8' })}>{c.signInsThisWeek || '—'}</td>
                     <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', fontWeight: c.signInsThisMonth > 0 ? 700 : 400, color: c.signInsThisMonth > 0 ? '#7c3aed' : '#94a3b8' })}>{c.signInsThisMonth || '—'}</td>
                     <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right' })}>{c.totalSignIns.toLocaleString()}</td>
+                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', borderLeft: '2px solid #f1f5f9', fontWeight: c.firstTimerCount > 0 ? 700 : 400, color: c.firstTimerCount > 0 ? '#e11d48' : '#94a3b8' })}>{c.firstTimerCount || '—'}</td>
+                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', fontWeight: c.eventCount > 0 ? 700 : 400, color: c.eventCount > 0 ? '#d97706' : '#94a3b8' })}>{c.eventCount || '—'}</td>
+                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: c.rsvpCount > 0 ? '#0891b2' : '#94a3b8' })}>{c.rsvpCount || '—'}</td>
                     <td style={td()}>
                       <span style={{ background: c.isActive ? '#f0fdf4' : '#fef2f2', color: c.isActive ? '#16a34a' : '#dc2626', borderRadius: 20, padding: '4px 11px', fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.03em' }}>
                         {c.isActive ? '● Active' : '● Inactive'}
