@@ -2,17 +2,25 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { adminFromRequest, cleanText } from '@/lib/guard';
 
-// GET — admin: list registrations for an event
+// GET — admin or public kiosk: list registrations
+// Public (no auth): requires churchId only — used by self-service kiosk
+// Admin (with auth): requires churchId, optionally eventId
 export async function GET(req) {
-  const payload = await adminFromRequest(req);
-  if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-
   const { searchParams } = new URL(req.url);
   const churchId = searchParams.get('churchId');
   const eventId = searchParams.get('eventId');
 
   if (!churchId) return NextResponse.json({ error: 'churchId required' }, { status: 400 });
-  if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+
+  const payload = await adminFromRequest(req);
+  if (payload) {
+    // Admin: enforce church ownership
+    if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+  } else {
+    // Public kiosk: verify church exists
+    const { data: ch } = await supabase.from('cc_churches').select('id').eq('id', churchId).maybeSingle();
+    if (!ch) return NextResponse.json({ error: 'Church not found.' }, { status: 404 });
+  }
 
   let q = supabase.from('cc_event_registrations').select('*').eq('church_id', churchId).order('created_at', { ascending: true });
   if (eventId) q = q.eq('event_id', eventId);
@@ -49,14 +57,27 @@ export async function POST(req) {
   }
 }
 
-// PUT — admin: mark/unmark attended
+// PUT — admin or public kiosk: mark/unmark attended
+// Public kiosk: pass { id, attended: true, public: true } — can only mark attended (not unmark)
 export async function PUT(req) {
   try {
+    const body = await req.json();
+    const { id, attended, public: isPublic } = body;
+    if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
+
+    if (isPublic) {
+      // Public kiosk: only allow marking attended, verify record exists
+      if (!attended) return NextResponse.json({ error: 'Public check-in can only mark attended.' }, { status: 403 });
+      const { data: rec } = await supabase.from('cc_event_registrations').select('id').eq('id', id).maybeSingle();
+      if (!rec) return NextResponse.json({ error: 'Record not found.' }, { status: 404 });
+      const { error } = await supabase.from('cc_event_registrations').update({ attended_at: new Date().toISOString() }).eq('id', id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Admin only for unmark or full control
     const payload = await adminFromRequest(req);
     if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-
-    const { id, attended } = await req.json();
-    if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
 
     const update = { attended_at: attended ? new Date().toISOString() : null };
     const { data, error } = await supabase.from('cc_event_registrations').update(update).eq('id', id).eq('church_id', payload.churchId).select('id');

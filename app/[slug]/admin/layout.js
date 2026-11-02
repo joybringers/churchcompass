@@ -135,6 +135,12 @@ export default function AdminLayout({ children }) {
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <i className="fas fa-desktop" style={{ width: 18, textAlign: 'center' }} />Open Kiosk
             </div>
+            <div onClick={() => window.open(`/${slug}/checkin`, '_blank')}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', marginBottom: 4 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <i className="fas fa-calendar-check" style={{ width: 18, textAlign: 'center' }} />Event Check-In
+            </div>
             <div onClick={logout}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
