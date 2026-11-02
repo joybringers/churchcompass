@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useCC } from '../layout';
+import { useParams } from 'next/navigation';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
@@ -9,12 +10,27 @@ const STATUS_COLORS = { pending: GOLD, contacted: '#3b82f6', 'follow-up': '#8b5c
 
 export default function FirstTimers() {
   const ctx = useCC();
+  const { slug } = useParams();
   const [list, setList] = useState([]);
   const [selected, setSelected] = useState(null);
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('pending');
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [copied, setCopied] = useState(false);
+
+  const formUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/${slug}/first-timer`
+    : `/${slug}/first-timer`;
+
+  const copyUrl = () => {
+    navigator.clipboard.writeText(formUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      try { const el = document.createElement('input'); el.value = formUrl; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
+    });
+  };
 
   const load = () => {
     if (!ctx) return;
@@ -38,6 +54,19 @@ export default function FirstTimers() {
 
   return (
     <div style={{ padding: '32px 28px', maxWidth: 900 }}>
+
+      {/* Form link banner */}
+      <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1d4ed8', marginBottom: 4 }}>FIRST-TIMER FORM LINK — share this with guests</div>
+          <div style={{ fontSize: '0.875rem', color: '#1e3a5f', fontFamily: 'monospace', wordBreak: 'break-all' }}>{formUrl}</div>
+        </div>
+        <button onClick={copyUrl}
+          style={{ background: copied ? '#16a34a' : NAV, color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>
+          {copied ? '✓ Copied!' : 'Copy Link'}
+        </button>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV }}>First Timers</h1>
         <div style={{ display: 'flex', gap: 8 }}>
