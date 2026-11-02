@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
@@ -27,6 +28,7 @@ function relativeTime(iso) {
 }
 
 export default function ElmorilAdmin() {
+  const router = useRouter();
   const [keyInput, setKeyInput] = useState('');
   const [authed, setAuthed] = useState(false);
   const [data, setData] = useState(null);
@@ -63,6 +65,7 @@ export default function ElmorilAdmin() {
   const signOut = () => {
     setAuthed(false); setData(null);
     try { sessionStorage.removeItem('elmoril_key'); } catch {}
+    router.push('/');
   };
 
   const toggleSort = (col) => {
