@@ -13,7 +13,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  'Unlimited members',
+  'Up to 500 members',
   'Everything in Free',
   'CSV export for all data',
   'Custom form fields',
@@ -97,7 +97,7 @@ export default function Pricing() {
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontWeight: 800, color: GOLD, fontSize: '1.1rem', marginBottom: 4 }}>Pro</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontSize: '2.8rem', fontWeight: 900, color: '#fff' }}>£19</span>
+                <span style={{ fontSize: '2.8rem', fontWeight: 900, color: '#fff' }}>£9</span>
                 <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>/month</span>
               </div>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 8 }}>For growing churches that need the full toolkit.</p>
