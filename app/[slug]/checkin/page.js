@@ -115,7 +115,7 @@ export default function SelfCheckin() {
     scheduleReset(8000);
   };
 
-  const accent = church?.brand_color || NAV;
+  const accent = church?.primary_color || NAV;
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f4f8' }}>

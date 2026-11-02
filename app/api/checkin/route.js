@@ -10,7 +10,7 @@ export async function GET(req) {
 
   const { data: church } = await supabase
     .from('cc_churches')
-    .select('id, name, brand_color')
+    .select('id, name, primary_color')
     .eq('slug', slug)
     .maybeSingle();
 
