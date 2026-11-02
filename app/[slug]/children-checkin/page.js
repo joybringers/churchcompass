@@ -96,7 +96,7 @@ export default function ChildrenCheckin() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'family',
+          action: 'family-checkin',
           churchId: church.id,
           guardianName: guardianName.trim(),
           guardianPhone: guardianPhone.trim(),

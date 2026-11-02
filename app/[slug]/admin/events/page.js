@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useCC } from '../layout';
+import { useRouter } from 'next/navigation';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
@@ -8,6 +9,7 @@ const BLANK = { name: '', eventType: 'service', eventDate: '', startTime: '', en
 
 export default function Events() {
   const ctx = useCC();
+  const router = useRouter();
   const [events, setEvents] = useState([]);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(BLANK);
@@ -101,6 +103,10 @@ export default function Events() {
                   {rsvpCounts[ev.id]} RSVP{rsvpCounts[ev.id] !== 1 ? 's' : ''}
                 </span>
               )}
+              <button onClick={() => router.push(`/${ctx.slug}/admin/events/${ev.id}/checkin`)}
+                style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>
+                <i className="fas fa-check-circle" style={{ marginRight: 5 }} />Check-in
+              </button>
               <button onClick={() => openEdit(ev)} style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>Edit</button>
               <button onClick={() => remove(ev.id)} style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>Delete</button>
             </div>

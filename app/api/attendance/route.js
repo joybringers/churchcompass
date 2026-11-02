@@ -82,11 +82,13 @@ export async function PUT(req) {
     const payload = await adminFromRequest(req);
     if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
 
-    const { id, signOutTime, memberId } = await req.json();
+    const { id, signOutTime, attended, memberId } = await req.json();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
     const update = {};
-    if (signOutTime !== undefined) {
+    if (attended === true) update.sign_out_time = new Date().toISOString();
+    else if (attended === false) update.sign_out_time = null;
+    else if (signOutTime !== undefined) {
       const t = signOutTime ? new Date(signOutTime) : new Date();
       if (Number.isNaN(t.getTime())) return NextResponse.json({ error: 'Invalid time.' }, { status: 400 });
       update.sign_out_time = t.toISOString();

@@ -23,6 +23,8 @@ export default function Reports() {
   const ctx = useCC();
   const [records, setRecords] = useState([]);
   const [firstTimers, setFirstTimers] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [rsvps, setRsvps] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,9 +37,13 @@ export default function Reports() {
     Promise.all([
       fetch(`/api/attendance?churchId=${church.id}&from=${from}&to=${to}`, { headers: h }).then(r => r.json()),
       fetch(`/api/first-timers?churchId=${church.id}`, { headers: h }).then(r => r.json()),
-    ]).then(([att, ft]) => {
+      fetch(`/api/events?churchId=${church.id}`, { headers: h }).then(r => r.json()),
+      fetch(`/api/attendance?churchId=${church.id}&visitorType=rsvp`, { headers: h }).then(r => r.json()),
+    ]).then(([att, ft, ev, rsvpData]) => {
       setRecords(att.records || []);
       setFirstTimers(ft.firstTimers || []);
+      setEvents(ev.events || []);
+      setRsvps(rsvpData.records || []);
       setLoading(false);
     });
   }, [ctx]);
@@ -141,17 +147,39 @@ export default function Reports() {
         </svg>
       </div>
 
-      {/* Top events */}
-      {topEvents.length > 0 && (
+      {/* Event breakdown */}
+      {events.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 14, padding: '24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 700, color: NAV, marginBottom: 16 }}>Top events by attendance</h2>
-          {topEvents.map((ev, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: GOLD + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, color: GOLD }}>{i + 1}</div>
-              <div style={{ flex: 1, fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{ev.name}</div>
-              <div style={{ background: NAV + '12', color: NAV, padding: '3px 12px', borderRadius: 20, fontSize: '0.8rem', fontWeight: 700 }}>{ev.count}</div>
-            </div>
-          ))}
+          <h2 style={{ fontSize: '1rem', fontWeight: 700, color: NAV, marginBottom: 16 }}>Events — registered vs attended</h2>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+                  {['Event', 'Date', 'Registered', 'Attended', 'Walk-ins', 'No-show'].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Event' || h === 'Date' ? 'left' : 'center', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {events.slice(0, 20).map(ev => {
+                  const evRsvps = rsvps.filter(r => r.event_id === ev.id);
+                  const attended = evRsvps.filter(r => r.sign_out_time).length;
+                  const walkInCount = (eventMap[ev.id]?.count || 0);
+                  const noShow = evRsvps.length - attended;
+                  return (
+                    <tr key={ev.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '12px 12px', fontWeight: 600, color: '#1e293b' }}>{ev.name}</td>
+                      <td style={{ padding: '12px 12px', color: '#64748b', whiteSpace: 'nowrap' }}>{new Date(ev.event_date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                      <td style={{ padding: '12px 12px', textAlign: 'center', fontWeight: evRsvps.length > 0 ? 700 : 400, color: evRsvps.length > 0 ? '#3b82f6' : '#94a3b8' }}>{evRsvps.length || '—'}</td>
+                      <td style={{ padding: '12px 12px', textAlign: 'center', fontWeight: attended > 0 ? 700 : 400, color: attended > 0 ? '#16a34a' : '#94a3b8' }}>{attended || '—'}</td>
+                      <td style={{ padding: '12px 12px', textAlign: 'center', color: walkInCount > 0 ? '#d97706' : '#94a3b8', fontWeight: walkInCount > 0 ? 700 : 400 }}>{walkInCount || '—'}</td>
+                      <td style={{ padding: '12px 12px', textAlign: 'center', color: noShow > 0 ? '#ef4444' : '#94a3b8' }}>{evRsvps.length > 0 ? (noShow || '—') : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
