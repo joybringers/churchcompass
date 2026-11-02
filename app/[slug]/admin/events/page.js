@@ -103,7 +103,7 @@ export default function Events() {
                   {rsvpCounts[ev.id]} RSVP{rsvpCounts[ev.id] !== 1 ? 's' : ''}
                 </span>
               )}
-              <button onClick={() => router.push(`/${ctx.slug}/admin/events/${ev.id}/checkin`)}
+              <button onClick={() => window.open(`/${ctx.slug}/admin/events/${ev.id}/checkin`, '_blank')}
                 style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>
                 <i className="fas fa-check-circle" style={{ marginRight: 5 }} />Check-in
               </button>
