@@ -26,12 +26,29 @@ export default function Settings() {
   const [fieldModal, setFieldModal] = useState(null);
   const [fieldForm, setFieldForm] = useState(BLANK_FIELD);
   const [fieldSaving, setFieldSaving] = useState(false);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [addAdminForm, setAddAdminForm] = useState({ name: '', email: '', password: '' });
+  const [addAdminError, setAddAdminError] = useState('');
+  const [addAdminSaving, setAddAdminSaving] = useState(false);
+  const [showAddAdmin, setShowAddAdmin] = useState(false);
+
+  const loadTeam = async () => {
+    if (!ctx) return;
+    setTeamLoading(true);
+    const { church, token } = ctx;
+    const res = await fetch(`/api/admin-users?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const data = await res.json();
+    setTeamMembers(data.admins || []);
+    setTeamLoading(false);
+  };
 
   const load = () => {
     if (!ctx) return;
     const { church, token } = ctx;
     setChurchForm({ name: church.name, denomination: church.denomination || '', address: church.address || '', phone: church.phone || '', website: church.website || '', primaryColor: church.primary_color || NAV });
     fetch(`/api/custom-fields?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setCustomFields(d.fields || []));
+    loadTeam();
   };
 
   useEffect(() => { load(); }, [ctx]);
@@ -78,6 +95,23 @@ export default function Settings() {
     if (!confirm('Delete this field?')) return;
     await fetch(`/api/custom-fields?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${ctx.token}` } });
     load();
+  };
+
+  const addAdmin = async (e) => {
+    e.preventDefault();
+    setAddAdminSaving(true); setAddAdminError('');
+    const { church, token } = ctx;
+    const res = await fetch('/api/admin-users', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ churchId: church.id, ...addAdminForm }) });
+    const data = await res.json();
+    if (!res.ok) { setAddAdminError(data.error || 'Failed to add admin.'); setAddAdminSaving(false); return; }
+    setAddAdminForm({ name: '', email: '', password: '' }); setShowAddAdmin(false); setAddAdminSaving(false);
+    loadTeam();
+  };
+
+  const removeAdmin = async (id, name) => {
+    if (!confirm(`Remove ${name} from admin team?`)) return;
+    await fetch(`/api/admin-users?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${ctx.token}` } });
+    loadTeam();
   };
 
   const startCheckout = async () => {
@@ -154,7 +188,7 @@ export default function Settings() {
                 </div>
                 {!isPro && (
                   <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
-                    Upgrade to Pro for £19/month to unlock unlimited members, CSV export, custom fields and more.
+                    Upgrade to Pro for £9/month to unlock unlimited members, CSV export, custom fields and more.
                   </p>
                 )}
               </div>
@@ -202,6 +236,54 @@ export default function Settings() {
           ))}
         </div>
       </div>
+
+      {/* TEAM */}
+      {ctx.admin?.role === 'owner' && (
+        <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 28 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 2 }}>Team</h2>
+              <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Manage who can log in to the admin dashboard.</p>
+            </div>
+            <button onClick={() => { setShowAddAdmin(v => !v); setAddAdminError(''); }} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>
+              <i className="fas fa-plus" style={{ marginRight: 5 }} />{showAddAdmin ? 'Cancel' : 'Add admin'}
+            </button>
+          </div>
+
+          {showAddAdmin && (
+            <form onSubmit={addAdmin} style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={lbl}>Name *</label><input style={inp} value={addAdminForm.name} onChange={e => setAddAdminForm(f => ({ ...f, name: e.target.value }))} required placeholder="Jane Smith" /></div>
+                <div><label style={lbl}>Email *</label><input type="email" style={inp} value={addAdminForm.email} onChange={e => setAddAdminForm(f => ({ ...f, email: e.target.value }))} required placeholder="jane@church.org" /></div>
+              </div>
+              <div><label style={lbl}>Password *</label><input type="password" style={inp} value={addAdminForm.password} onChange={e => setAddAdminForm(f => ({ ...f, password: e.target.value }))} required placeholder="Min. 8 characters" minLength={8} /></div>
+              {addAdminError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', color: '#dc2626', fontSize: '0.82rem' }}>{addAdminError}</div>}
+              <button type="submit" disabled={addAdminSaving} style={{ background: addAdminSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, cursor: addAdminSaving ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
+                {addAdminSaving ? 'Adding…' : 'Add admin'}
+              </button>
+            </form>
+          )}
+
+          {teamLoading ? (
+            <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Loading…</p>
+          ) : teamMembers.map(m => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: m.role === 'owner' ? '#fef3c7' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-user" style={{ color: m.role === 'owner' ? '#b45309' : '#64748b', fontSize: 13 }} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>{m.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.email} · <span style={{ textTransform: 'capitalize', color: m.role === 'owner' ? '#b45309' : '#64748b' }}>{m.role}</span></div>
+                </div>
+              </div>
+              {m.role !== 'owner' && (
+                <button onClick={() => removeAdmin(m.id, m.name)} style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Remove</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

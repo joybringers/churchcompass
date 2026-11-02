@@ -26,15 +26,20 @@ export default function AdminLayout({ children }) {
   const router = useRouter();
   const [church, setChurch] = useState(null);
   const [token, setToken] = useState(null);
+  const [admin, setAdmin] = useState(null);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
+  const decodeToken = (t) => {
+    try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; }
+  };
+
   useEffect(() => {
     const stored = sessionStorage.getItem(`cc_token_${slug}`);
-    if (stored) setToken(stored);
+    if (stored) { setToken(stored); setAdmin(decodeToken(stored)); }
     fetch(`/api/churches?slug=${slug}`).then(r => r.json()).then(d => { setChurch(d.church || null); setAuthChecked(true); });
   }, [slug]);
 
@@ -46,10 +51,11 @@ export default function AdminLayout({ children }) {
     if (!res.ok) { setLoginError(data.error || 'Login failed.'); setLoginLoading(false); return; }
     sessionStorage.setItem(`cc_token_${slug}`, data.token);
     setToken(data.token);
+    setAdmin(decodeToken(data.token));
     setLoginLoading(false);
   };
 
-  const logout = () => { sessionStorage.removeItem(`cc_token_${slug}`); setToken(null); };
+  const logout = () => { sessionStorage.removeItem(`cc_token_${slug}`); setToken(null); setAdmin(null); };
 
   if (!authChecked) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -102,7 +108,7 @@ export default function AdminLayout({ children }) {
   const currentPath = pathname.replace(adminBase, '') || '';
 
   return (
-    <CC.Provider value={{ church, token, slug }}>
+    <CC.Provider value={{ church, token, slug, admin }}>
       <div style={{ display: 'flex', minHeight: '100vh', background: '#f1f5f9' }}>
         {/* Sidebar */}
         <aside style={{ width: 220, background: NAV, display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}>
@@ -130,6 +136,17 @@ export default function AdminLayout({ children }) {
             })}
           </nav>
           <div style={{ padding: '12px 8px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            {admin?.adminName && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', marginBottom: 6 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <i className="fas fa-user" style={{ color: GOLD, fontSize: 11 }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{admin.adminName}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.65rem', textTransform: 'capitalize' }}>{admin.role || 'admin'}</div>
+                </div>
+              </div>
+            )}
             <div onClick={() => window.open(`/${slug}/signin`, '_blank')}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', marginBottom: 4 }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}

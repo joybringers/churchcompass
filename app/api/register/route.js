@@ -12,8 +12,11 @@ export async function POST(req) {
     if (existing) return NextResponse.json({ error: 'That slug is already taken. Please choose another.' }, { status: 409 });
 
     const password_hash = await bcrypt.hash(password, 12);
-    const { error } = await supabase.from('cc_churches').insert({ slug, name, denomination, address, phone, admin_email: adminEmail, password_hash });
+    const { data: church, error } = await supabase.from('cc_churches').insert({ slug, name, denomination, address, phone, admin_email: adminEmail, password_hash }).select('id').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Create the owner admin account
+    await supabase.from('cc_admin_users').insert({ church_id: church.id, name: 'Church Admin', email: adminEmail, role: 'owner', password_hash });
 
     // Send welcome email (best-effort — don't fail registration if email fails)
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://churchcompass.elmorilx.com';
