@@ -67,6 +67,10 @@ export default function Landing() {
               style={{ background: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,0.4)', borderRadius: 10, padding: '14px 28px', fontWeight: 600, cursor: 'pointer', fontSize: '1rem' }}>
               See Features
             </button>
+            <button onClick={() => document.getElementById('pricing').scrollIntoView({ behavior: 'smooth' })}
+              style={{ background: 'transparent', color: GOLD, border: '2px solid rgba(245,158,11,0.4)', borderRadius: 10, padding: '14px 28px', fontWeight: 600, cursor: 'pointer', fontSize: '1rem' }}>
+              See Pricing
+            </button>
           </div>
         </div>
       </section>
@@ -90,6 +94,68 @@ export default function Landing() {
                 <div style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: 1.6 }}>{f.desc}</div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" style={{ background: '#f8fafc', padding: 'clamp(40px, 8vw, 72px) clamp(16px, 5vw, 32px)' }}>
+        <div style={{ maxWidth: 860, margin: '0 auto' }}>
+          <h2 style={{ textAlign: 'center', fontSize: '1.75rem', fontWeight: 800, color: NAV, marginBottom: 8 }}>Simple, transparent pricing</h2>
+          <p style={{ textAlign: 'center', color: '#64748b', marginBottom: 48 }}>No hidden fees. Cancel any time.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
+            {/* Free */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '1.1rem', marginBottom: 4 }}>Free</div>
+              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: NAV, lineHeight: 1, marginBottom: 4 }}>£0</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: 24 }}>forever</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                {['Up to 100 members', '3 admin accounts', 'Children check-in', 'Attendance tracking', 'First-timer forms', 'Events management'].map(f => (
+                  <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: '#374151' }}>
+                    <i className="fas fa-check" style={{ color: '#16a34a', fontSize: 12, flexShrink: 0 }} />{f}
+                  </li>
+                ))}
+              </ul>
+              <button onClick={() => router.push('/register')}
+                style={{ marginTop: 28, background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
+                Get started free
+              </button>
+            </div>
+            {/* Pro — highlighted */}
+            <div style={{ background: NAV, borderRadius: 16, padding: '32px 28px', boxShadow: '0 4px 24px rgba(30,58,95,0.25)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 16, right: 16, background: GOLD, color: NAV, fontSize: '0.65rem', fontWeight: 800, padding: '3px 10px', borderRadius: 20, letterSpacing: '0.06em' }}>MOST POPULAR</div>
+              <div style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem', marginBottom: 4 }}>Pro</div>
+              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: GOLD, lineHeight: 1, marginBottom: 4 }}>£9</div>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', marginBottom: 24 }}>per month</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                {['Up to 500 members', 'Unlimited admin accounts', 'Everything in Free', 'CSV export', 'Custom fields', 'Groups & teams', 'Guard (DBS + incidents)', 'Priority support'].map(f => (
+                  <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: 'rgba(255,255,255,0.85)' }}>
+                    <i className="fas fa-check" style={{ color: GOLD, fontSize: 12, flexShrink: 0 }} />{f}
+                  </li>
+                ))}
+              </ul>
+              <button onClick={() => router.push('/register')}
+                style={{ marginTop: 28, background: GOLD, color: NAV, border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
+                Start free trial
+              </button>
+            </div>
+            {/* Custom */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '1.1rem', marginBottom: 4 }}>Custom</div>
+              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: NAV, lineHeight: 1, marginBottom: 4 }}>Talk</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: 24 }}>to us</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                {['500+ members', 'Multi-site / network', 'Everything in Pro', 'White-label option', 'Dedicated onboarding', 'Custom integrations'].map(f => (
+                  <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: '#374151' }}>
+                    <i className="fas fa-check" style={{ color: '#16a34a', fontSize: 12, flexShrink: 0 }} />{f}
+                  </li>
+                ))}
+              </ul>
+              <a href="mailto:hello@elmorilx.com"
+                style={{ marginTop: 28, background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'none', textAlign: 'center', display: 'block' }}>
+                Contact us
+              </a>
+            </div>
           </div>
         </div>
       </section>
