@@ -24,9 +24,9 @@ export async function GET(req) {
 export async function POST(req) {
   const payload = await adminFromRequest(req);
   if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-  const { churchId, firstName, lastName, email, phone, dob, memberType, notes } = await req.json();
+  const { churchId, firstName, lastName, email, phone, dob, memberType, notes, parentId } = await req.json();
   if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
-  const { data, error } = await supabase.from('cc_members').insert({ church_id: churchId, first_name: firstName, last_name: lastName, email, phone, dob: dob || null, member_type: memberType || 'adult', notes }).select('id').single();
+  const { data, error } = await supabase.from('cc_members').insert({ church_id: churchId, first_name: firstName, last_name: lastName, email, phone, dob: dob || null, member_type: memberType || 'adult', notes, parent_id: parentId || null }).select('id').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: data.id });
 }
@@ -34,9 +34,9 @@ export async function POST(req) {
 export async function PUT(req) {
   const payload = await adminFromRequest(req);
   if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-  const { id, churchId, firstName, lastName, email, phone, dob, memberType, notes } = await req.json();
+  const { id, churchId, firstName, lastName, email, phone, dob, memberType, notes, parentId } = await req.json();
   if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
-  const { error } = await supabase.from('cc_members').update({ first_name: firstName, last_name: lastName, email, phone, dob: dob || null, member_type: memberType, notes }).eq('id', id).eq('church_id', churchId);
+  const { error } = await supabase.from('cc_members').update({ first_name: firstName, last_name: lastName, email, phone, dob: dob || null, member_type: memberType, notes, parent_id: parentId || null }).eq('id', id).eq('church_id', churchId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

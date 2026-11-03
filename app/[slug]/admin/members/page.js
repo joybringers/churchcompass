@@ -5,13 +5,14 @@ import { useCC } from '../layout';
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 
-const BLANK = { firstName: '', lastName: '', email: '', phone: '', dob: '', memberType: 'adult', notes: '' };
+const BLANK = { firstName: '', lastName: '', email: '', phone: '', dob: '', memberType: 'adult', notes: '', parentId: '' };
 const FREE_LIMIT = 100;
 
 export default function Members() {
   const ctx = useCC();
   const [members, setMembers] = useState([]);
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('all'); // 'all' | 'families'
   const [modal, setModal] = useState(null); // null | 'add' | member obj
   const [form, setForm] = useState(BLANK);
   const [saving, setSaving] = useState(false);
@@ -36,13 +37,13 @@ export default function Members() {
     }
     setForm(BLANK); setModal('add');
   };
-  const openEdit = (m) => { setForm({ firstName: m.first_name, lastName: m.last_name, email: m.email || '', phone: m.phone || '', dob: m.dob || '', memberType: m.member_type, notes: m.notes || '' }); setModal(m); };
+  const openEdit = (m) => { setForm({ firstName: m.first_name, lastName: m.last_name, email: m.email || '', phone: m.phone || '', dob: m.dob || '', memberType: m.member_type, notes: m.notes || '', parentId: m.parent_id || '' }); setModal(m); };
 
   const save = async () => {
     setSaving(true);
     const { church, token } = ctx;
     const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-    const body = { churchId: church.id, firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone, dob: form.dob, memberType: form.memberType, notes: form.notes };
+    const body = { churchId: church.id, firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone, dob: form.dob, memberType: form.memberType, notes: form.notes, parentId: form.parentId || null };
     if (modal === 'add') await fetch('/api/members', { method: 'POST', headers: h, body: JSON.stringify(body) });
     else await fetch('/api/members', { method: 'PUT', headers: h, body: JSON.stringify({ ...body, id: modal.id }) });
     setSaving(false); setModal(null); load();
@@ -106,6 +107,16 @@ export default function Members() {
   };
 
   const filtered = members.filter(m => `${m.first_name} ${m.last_name} ${m.email}`.toLowerCase().includes(search.toLowerCase()));
+  const memberById = Object.fromEntries(members.map(m => [m.id, m]));
+  const adults = members.filter(m => m.member_type !== 'child');
+  // Build family groups: parents (adults with children) + their children
+  const childrenByParent = {};
+  members.filter(m => m.parent_id).forEach(m => {
+    if (!childrenByParent[m.parent_id]) childrenByParent[m.parent_id] = [];
+    childrenByParent[m.parent_id].push(m);
+  });
+  const families = adults.filter(a => childrenByParent[a.id]);
+  const orphanedChildren = members.filter(m => m.member_type === 'child' && !m.parent_id);
 
   const inp = { padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.95rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
   const lbl = { fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 3 };
@@ -129,6 +140,16 @@ export default function Members() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #e2e8f0', paddingBottom: 0 }}>
+        {[['all', 'All Members'], ['families', 'Families']].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            style={{ background: 'none', border: 'none', borderBottom: tab === key ? `2px solid ${NAV}` : '2px solid transparent', marginBottom: -2, padding: '8px 16px', fontWeight: tab === key ? 700 : 500, color: tab === key ? NAV : '#64748b', cursor: 'pointer', fontSize: '0.9rem', transition: 'color 0.15s' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Free tier limit banner */}
       {(ctx?.church?.plan || 'free') === 'free' && members.length >= FREE_LIMIT && (
         <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 12, padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -143,38 +164,102 @@ export default function Members() {
         </div>
       )}
 
-      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search members…"
-        style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: '0.95rem', marginBottom: 16, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#fff' }} />
-
-      <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-          <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Name</th>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Type</th>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Email</th>
-              <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Phone</th>
-              <th style={{ padding: '12px 16px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={5} style={{ padding: '28px 16px', textAlign: 'center', color: '#94a3b8' }}>No members found.</td></tr>
-            ) : filtered.map(m => (
-              <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e293b' }}>{m.first_name} {m.last_name}</td>
-                <td style={{ padding: '12px 16px', textTransform: 'capitalize', color: '#64748b' }}>{m.member_type}</td>
-                <td style={{ padding: '12px 16px', color: '#64748b' }}>{m.email || '—'}</td>
-                <td style={{ padding: '12px 16px', color: '#64748b' }}>{m.phone || '—'}</td>
-                <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                  <button onClick={() => openEdit(m)} style={{ background: 'none', border: 'none', color: NAV, cursor: 'pointer', marginRight: 8, fontSize: '0.85rem' }}>Edit</button>
-                  <button onClick={() => remove(m.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Delete</button>
-                </td>
+      {tab === 'all' && (<>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search members…"
+          style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: '0.95rem', marginBottom: 16, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#fff' }} />
+        <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Name</th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Type</th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Email</th>
+                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Phone</th>
+                <th style={{ padding: '12px 16px' }}></th>
               </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={5} style={{ padding: '28px 16px', textAlign: 'center', color: '#94a3b8' }}>No members found.</td></tr>
+              ) : filtered.map(m => (
+                <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ fontWeight: 600, color: '#1e293b' }}>{m.first_name} {m.last_name}</div>
+                    {m.parent_id && memberById[m.parent_id] && (
+                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 1 }}>
+                        <i className="fas fa-user" style={{ marginRight: 3 }} />
+                        {memberById[m.parent_id].first_name} {memberById[m.parent_id].last_name}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '12px 16px', textTransform: 'capitalize', color: '#64748b' }}>{m.member_type}</td>
+                  <td style={{ padding: '12px 16px', color: '#64748b' }}>{m.email || '—'}</td>
+                  <td style={{ padding: '12px 16px', color: '#64748b' }}>{m.phone || '—'}</td>
+                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <button onClick={() => openEdit(m)} style={{ background: 'none', border: 'none', color: NAV, cursor: 'pointer', marginRight: 8, fontSize: '0.85rem' }}>Edit</button>
+                    <button onClick={() => remove(m.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>)}
+
+      {tab === 'families' && (
+        <div>
+          {families.length === 0 && orphanedChildren.length === 0 ? (
+            <div style={{ background: '#fff', borderRadius: 14, padding: '40px', textAlign: 'center', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+              <i className="fas fa-users" style={{ fontSize: 32, color: '#e2e8f0', marginBottom: 12, display: 'block' }} />
+              <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: 8 }}>No families linked yet.</p>
+              <p style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Edit a child member and set their parent to create a family group.</p>
+            </div>
+          ) : (<>
+            {families.map(parent => (
+              <div key={parent.id} style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: NAV + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fas fa-user" style={{ color: NAV, fontSize: 14 }} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, color: NAV, fontSize: '0.95rem' }}>{parent.first_name} {parent.last_name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{parent.email || parent.phone || parent.member_type}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => openEdit(parent)} style={{ background: 'none', border: '1px solid #e2e8f0', color: NAV, borderRadius: 7, padding: '5px 12px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Edit</button>
+                </div>
+                {(childrenByParent[parent.id] || []).map(child => (
+                  <div key={child.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 20px 11px 56px', borderBottom: '1px solid #f8fafc' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <i className="fas fa-child" style={{ color: GOLD, fontSize: 13 }} />
+                      <div>
+                        <span style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>{child.first_name} {child.last_name}</span>
+                        {child.dob && <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: 8 }}>DOB {child.dob}</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => openEdit(child)} style={{ background: 'none', border: '1px solid #e2e8f0', color: NAV, borderRadius: 7, padding: '5px 12px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Edit</button>
+                  </div>
+                ))}
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+            {orphanedChildren.length > 0 && (
+              <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+                <div style={{ padding: '12px 20px', background: '#fffbeb', borderBottom: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <i className="fas fa-triangle-exclamation" style={{ color: '#d97706' }} />
+                  <span style={{ fontWeight: 700, color: '#92400e', fontSize: '0.85rem' }}>Children without a linked parent ({orphanedChildren.length})</span>
+                </div>
+                {orphanedChildren.map(child => (
+                  <div key={child.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 20px', borderBottom: '1px solid #f8fafc' }}>
+                    <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>{child.first_name} {child.last_name}</div>
+                    <button onClick={() => openEdit(child)} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Link parent</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>)}
+        </div>
+      )}
 
       {modal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
@@ -193,6 +278,17 @@ export default function Members() {
               <div><label style={lbl}>Email</label><input style={inp} type="email" value={form.email} onChange={e => set('email', e.target.value)} /></div>
               <div><label style={lbl}>Phone</label><input style={inp} value={form.phone} onChange={e => set('phone', e.target.value)} /></div>
               <div><label style={lbl}>Date of birth</label><input style={inp} type="date" value={form.dob} onChange={e => set('dob', e.target.value)} /></div>
+              {form.memberType === 'child' && (
+                <div>
+                  <label style={lbl}>Parent / Guardian</label>
+                  <select style={inp} value={form.parentId} onChange={e => set('parentId', e.target.value)}>
+                    <option value="">— not linked —</option>
+                    {adults.filter(a => modal === 'add' || a.id !== modal?.id).map(a => (
+                      <option key={a.id} value={a.id}>{a.first_name} {a.last_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div><label style={lbl}>Notes</label><textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} /></div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
