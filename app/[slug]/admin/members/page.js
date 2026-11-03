@@ -18,11 +18,14 @@ export default function Members() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [memberFields, setMemberFields] = useState([]);
+  const [customValues, setCustomValues] = useState({});
 
   const load = () => {
     if (!ctx) return;
     const { church, token } = ctx;
     fetch(`/api/members?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setMembers(d.members || []));
+    fetch(`/api/custom-fields?churchId=${church.id}&formType=member`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setMemberFields(d.fields || []));
   };
 
   useEffect(() => { load(); }, [ctx]);
@@ -35,17 +38,36 @@ export default function Members() {
       window.location.href = `/${ctx.slug}/admin/settings`;
       return;
     }
-    setForm(BLANK); setModal('add');
+    setForm(BLANK); setCustomValues({}); setModal('add');
   };
-  const openEdit = (m) => { setForm({ firstName: m.first_name, lastName: m.last_name, email: m.email || '', phone: m.phone || '', dob: m.dob || '', memberType: m.member_type, notes: m.notes || '', parentId: m.parent_id || '' }); setModal(m); };
+  const openEdit = async (m) => {
+    setForm({ firstName: m.first_name, lastName: m.last_name, email: m.email || '', phone: m.phone || '', dob: m.dob || '', memberType: m.member_type, notes: m.notes || '', parentId: m.parent_id || '' });
+    setCustomValues({});
+    setModal(m);
+    if (memberFields.length > 0) {
+      const { token } = ctx;
+      const res = await fetch(`/api/custom-field-values?recordId=${m.id}&recordType=member`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      setCustomValues(data.values || {});
+    }
+  };
 
   const save = async () => {
     setSaving(true);
     const { church, token } = ctx;
     const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
     const body = { churchId: church.id, firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone, dob: form.dob, memberType: form.memberType, notes: form.notes, parentId: form.parentId || null };
-    if (modal === 'add') await fetch('/api/members', { method: 'POST', headers: h, body: JSON.stringify(body) });
-    else await fetch('/api/members', { method: 'PUT', headers: h, body: JSON.stringify({ ...body, id: modal.id }) });
+    let memberId = modal?.id;
+    if (modal === 'add') {
+      const res = await fetch('/api/members', { method: 'POST', headers: h, body: JSON.stringify(body) });
+      const data = await res.json();
+      memberId = data.id;
+    } else {
+      await fetch('/api/members', { method: 'PUT', headers: h, body: JSON.stringify({ ...body, id: modal.id }) });
+    }
+    if (memberId && memberFields.length > 0 && Object.keys(customValues).length > 0) {
+      await fetch('/api/custom-field-values', { method: 'POST', headers: h, body: JSON.stringify({ recordId: memberId, recordType: 'member', values: customValues }) });
+    }
     setSaving(false); setModal(null); load();
   };
 
@@ -290,6 +312,31 @@ export default function Members() {
                 </div>
               )}
               <div><label style={lbl}>Notes</label><textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} /></div>
+              {memberFields.length > 0 && (
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, marginTop: 4 }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 10 }}>Custom fields</div>
+                  {memberFields.map(f => (
+                    <div key={f.id} style={{ marginBottom: 10 }}>
+                      <label style={lbl}>{f.field_label}{f.is_required ? ' *' : ''}</label>
+                      {f.field_type === 'textarea' ? (
+                        <textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.is_required} />
+                      ) : f.field_type === 'select' ? (
+                        <select style={inp} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.is_required}>
+                          <option value="">— select —</option>
+                          {(f.field_options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : f.field_type === 'checkbox' ? (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.875rem' }}>
+                          <input type="checkbox" checked={customValues[f.id] === 'true'} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.checked ? 'true' : 'false' }))} />
+                          {f.field_label}
+                        </label>
+                      ) : (
+                        <input style={inp} type={f.field_type} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.is_required} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button onClick={() => setModal(null)} style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
