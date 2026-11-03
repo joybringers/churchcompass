@@ -121,6 +121,15 @@ export default function AdminLayout({ children }) {
               <span style={{ color: '#fff', fontWeight: 800, fontSize: '0.85rem' }}>CHURCH<span style={{ color: GOLD }}>COMPASS</span></span>
             </div>
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem', marginTop: 6, paddingLeft: 2 }}>{church.name}</div>
+            {(() => {
+              const plan = church?.plan || 'free';
+              const isPro = plan === 'pro' || plan === 'custom';
+              return (
+                <span style={{ display: 'inline-block', marginTop: 6, background: isPro ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.1)', color: isPro ? GOLD : 'rgba(255,255,255,0.5)', fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {plan === 'custom' ? 'Custom' : isPro ? 'Pro' : 'Free'}
+                </span>
+              );
+            })()}
           </div>
           <nav style={{ flex: 1, padding: '12px 8px' }}>
             {navItems.map(item => {
