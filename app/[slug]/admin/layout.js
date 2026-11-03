@@ -14,6 +14,7 @@ const navItems = [
   { label: 'Events',       icon: 'fa-calendar-days',  path: '/events' },
   { label: 'Attendance',   icon: 'fa-clipboard-list', path: '/attendance' },
   { label: 'Children',     icon: 'fa-child',          path: '/children' },
+  { label: 'Groups',       icon: 'fa-layer-group',    path: '/groups' },
   { label: 'Guard',        icon: 'fa-shield-halved',  path: '/guard' },
   { label: 'First Timers', icon: 'fa-user-plus',      path: '/first-timers' },
   { label: 'Reports',      icon: 'fa-chart-bar',      path: '/reports' },
