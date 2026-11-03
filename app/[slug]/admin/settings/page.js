@@ -32,6 +32,10 @@ export default function Settings() {
   const [addAdminError, setAddAdminError] = useState('');
   const [addAdminSaving, setAddAdminSaving] = useState(false);
   const [showAddAdmin, setShowAddAdmin] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSaved, setPwSaved] = useState(false);
 
   const loadTeam = async () => {
     if (!ctx) return;
@@ -128,6 +132,19 @@ export default function Settings() {
     const data = await res.json();
     if (data.url) window.location.href = data.url;
     else { alert(data.error || 'Could not open billing portal.'); setBillingLoading(false); }
+  };
+
+  const changePassword = async (e) => {
+    e.preventDefault();
+    setPwError(''); setPwSaved(false);
+    if (pwForm.next !== pwForm.confirm) { setPwError('New passwords do not match.'); return; }
+    if (pwForm.next.length < 8) { setPwError('Password must be at least 8 characters.'); return; }
+    setPwSaving(true);
+    const res = await fetch('/api/admin-users', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ctx.token}` }, body: JSON.stringify({ action: 'change_password', currentPassword: pwForm.current, newPassword: pwForm.next }) });
+    const data = await res.json();
+    if (!res.ok) { setPwError(data.error || 'Failed to change password.'); setPwSaving(false); return; }
+    setPwForm({ current: '', next: '', confirm: '' }); setPwSaving(false); setPwSaved(true);
+    setTimeout(() => setPwSaved(false), 3000);
   };
 
   const inp = { padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.95rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
@@ -310,6 +327,22 @@ export default function Settings() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* CHANGE PASSWORD */}
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginTop: 28 }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 4 }}>Change your password</h2>
+        <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 20 }}>Update the password for your admin account.</p>
+        <form onSubmit={changePassword} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 400 }}>
+          <div><label style={lbl}>Current password</label><input type="password" style={inp} value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} required autoComplete="current-password" /></div>
+          <div><label style={lbl}>New password</label><input type="password" style={inp} value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} required minLength={8} autoComplete="new-password" /></div>
+          <div><label style={lbl}>Confirm new password</label><input type="password" style={inp} value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} required minLength={8} autoComplete="new-password" /></div>
+          {pwError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', color: '#dc2626', fontSize: '0.85rem' }}>{pwError}</div>}
+          <button type="submit" disabled={pwSaving}
+            style={{ background: pwSaved ? '#22c55e' : pwSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: pwSaving ? 'not-allowed' : 'pointer' }}>
+            {pwSaved ? '✓ Password changed' : pwSaving ? 'Saving…' : 'Change Password'}
+          </button>
+        </form>
       </div>
 
       {fieldModal && (

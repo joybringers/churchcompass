@@ -54,9 +54,31 @@ export async function POST(req) {
 export async function PUT(req) {
   const payload = await adminFromRequest(req);
   if (!payload) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-  if (payload.role && payload.role !== 'owner') return NextResponse.json({ error: 'Only the owner can edit admins.' }, { status: 403 });
 
-  const { id, churchId, name } = await req.json();
+  const body = await req.json();
+
+  // Change own password — any admin can do this
+  if (body.action === 'change_password') {
+    const { currentPassword, newPassword } = body;
+    if (!currentPassword || !newPassword) return NextResponse.json({ error: 'Current and new password required.' }, { status: 400 });
+    if (newPassword.length < 8) return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 });
+    if (!payload.adminId) return NextResponse.json({ error: 'Legacy session — please log out and back in.' }, { status: 400 });
+
+    const { data: admin } = await supabase.from('cc_admin_users').select('password_hash').eq('id', payload.adminId).single();
+    if (!admin) return NextResponse.json({ error: 'Admin not found.' }, { status: 404 });
+
+    const ok = await bcrypt.compare(currentPassword, admin.password_hash);
+    if (!ok) return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 401 });
+
+    const password_hash = await bcrypt.hash(newPassword, 12);
+    const { error } = await supabase.from('cc_admin_users').update({ password_hash }).eq('id', payload.adminId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  // Rename an admin — owner only
+  if (payload.role && payload.role !== 'owner') return NextResponse.json({ error: 'Only the owner can edit admins.' }, { status: 403 });
+  const { id, churchId, name } = body;
   if (payload.churchId !== churchId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
 
   const { error } = await supabase.from('cc_admin_users').update({ name }).eq('id', id).eq('church_id', churchId);
