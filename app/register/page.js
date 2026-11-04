@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
@@ -9,8 +9,13 @@ function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-export default function Register() {
+function RegisterForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const plan = params.get('plan'); // 'pro' or null
+  const billing = params.get('billing') || 'monthly'; // 'monthly' | 'annual'
+  const isPro = plan === 'pro';
+
   const [form, setForm] = useState({ name: '', slug: '', denomination: '', address: '', phone: '', adminEmail: '', password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,10 +28,18 @@ export default function Register() {
     if (form.password !== form.confirm) { setError('Passwords do not match.'); return; }
     if (form.password.length < 8) { setError('Password must be at least 8 characters.'); return; }
     setError(''); setLoading(true);
-    const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, slug: form.slug, denomination: form.denomination, address: form.address, phone: form.phone, adminEmail: form.adminEmail, password: form.password }) });
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: form.name, slug: form.slug, denomination: form.denomination, address: form.address, phone: form.phone, adminEmail: form.adminEmail, password: form.password, plan: isPro ? 'pro' : 'free', billing }),
+    });
     const data = await res.json();
     if (!res.ok) { setError(data.error || 'Registration failed.'); setLoading(false); return; }
-    router.push(`/${form.slug}/admin`);
+    if (data.stripeUrl) {
+      window.location.href = data.stripeUrl;
+    } else {
+      router.push(`/${form.slug}/admin`);
+    }
   };
 
   const inp = { padding: '11px 14px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '1rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
@@ -43,7 +56,24 @@ export default function Register() {
 
       <div style={{ background: '#fff', borderRadius: 16, padding: '36px 32px', maxWidth: 540, width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: NAV, marginBottom: 4 }}>Register your church</h1>
-        <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: 28 }}>Free plan available. No credit card needed.</p>
+
+        {isPro ? (
+          <div style={{ background: 'linear-gradient(90deg, #1e3a5f 0%, #2d5282 100%)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <i className="fas fa-bolt" style={{ color: GOLD, marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.875rem' }}>
+                Starting Pro — {billing === 'annual' ? '£90/year' : '14-day free trial'}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.78rem', marginTop: 2 }}>
+                {billing === 'annual'
+                  ? 'After creating your account you\'ll set up annual payment on the next step.'
+                  : 'After creating your account you\'ll add a card — no charge for 14 days.'}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: 28 }}>Free plan available. No credit card needed.</p>
+        )}
 
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
@@ -76,15 +106,34 @@ export default function Register() {
           </div>
 
           {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', color: '#dc2626', fontSize: '0.875rem' }}>{error}</div>}
+
           <button type="submit" disabled={loading}
-            style={{ background: loading ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '14px', fontWeight: 700, fontSize: '1rem', cursor: loading ? 'not-allowed' : 'pointer' }}>
-            {loading ? 'Creating account…' : 'Create Church Account'}
+            style={{ background: loading ? '#94a3b8' : (isPro ? GOLD : NAV), color: isPro ? NAV : '#fff', border: 'none', borderRadius: 10, padding: '14px', fontWeight: 800, fontSize: '1rem', cursor: loading ? 'not-allowed' : 'pointer' }}>
+            {loading
+              ? (isPro ? 'Creating account…' : 'Creating account…')
+              : (isPro ? (billing === 'annual' ? 'Create account & set up payment →' : 'Create account & start free trial →') : 'Create Church Account')}
           </button>
+
+          {isPro && (
+            <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8', marginTop: -8 }}>
+              <i className="fas fa-lock" style={{ marginRight: 4 }} />
+              {billing === 'annual' ? 'Secure payment via Stripe. Cancel anytime.' : 'No charge until your 14-day trial ends. Cancel anytime.'}
+            </p>
+          )}
         </form>
+
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: '0.85rem', color: '#64748b' }}>
           Already registered? <a href="/" style={{ color: NAV, fontWeight: 600 }}>Find your church</a>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function Register() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

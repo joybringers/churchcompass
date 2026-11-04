@@ -1,4 +1,6 @@
 'use client';
+import { useState } from 'react';
+
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 
@@ -14,11 +16,12 @@ const FREE_FEATURES = [
 
 const PRO_FEATURES = [
   'Up to 500 members',
+  'Unlimited admin accounts',
   'Everything in Free',
-  'CSV export for all data',
-  'Custom form fields',
-  'Advanced reporting & analytics',
-  'Multiple admin accounts',
+  'CSV export',
+  'Custom fields',
+  'Groups & teams',
+  'Guard (DBS + incidents)',
   'Priority support',
 ];
 
@@ -41,6 +44,9 @@ function Check({ color = '#16a34a' }) {
 }
 
 export default function Pricing() {
+  const [billing, setBilling] = useState('monthly');
+  const isAnnual = billing === 'annual';
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Nav */}
@@ -55,13 +61,27 @@ export default function Pricing() {
 
       <div style={{ maxWidth: 1060, margin: '0 auto', padding: '64px 24px 80px' }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 56 }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: NAV, marginBottom: 12 }}>
             Simple, transparent pricing
           </h1>
-          <p style={{ color: '#64748b', fontSize: '1.1rem', maxWidth: 520, margin: '0 auto' }}>
+          <p style={{ color: '#64748b', fontSize: '1.1rem', maxWidth: 520, margin: '0 auto 28px' }}>
             Start free. Upgrade when your church is ready to grow.
           </p>
+
+          {/* Billing toggle */}
+          <div style={{ display: 'inline-flex', background: '#e2e8f0', borderRadius: 12, padding: 4, gap: 2 }}>
+            <button onClick={() => setBilling('monthly')}
+              style={{ padding: '8px 20px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', background: !isAnnual ? '#fff' : 'transparent', color: !isAnnual ? NAV : '#64748b', boxShadow: !isAnnual ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s', fontFamily: 'inherit' }}>
+              Monthly
+            </button>
+            <button onClick={() => setBilling('annual')}
+              style={{ padding: '8px 20px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', background: isAnnual ? '#fff' : 'transparent', color: isAnnual ? NAV : '#64748b', boxShadow: isAnnual ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}>
+              Annual
+              <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.65rem', fontWeight: 800, padding: '2px 6px', borderRadius: 20 }}>SAVE 17%</span>
+            </button>
+          </div>
+          {isAnnual && <p style={{ color: '#16a34a', fontSize: '0.8rem', fontWeight: 600, marginTop: 10 }}>2 months free — £90/year instead of £108</p>}
         </div>
 
         {/* Cards */}
@@ -96,15 +116,29 @@ export default function Pricing() {
             </div>
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontWeight: 800, color: GOLD, fontSize: '1.1rem', marginBottom: 4 }}>Pro</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontSize: '2.8rem', fontWeight: 900, color: '#fff' }}>£9</span>
-                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>/month</span>
-              </div>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 8 }}>For growing churches that need the full toolkit.</p>
-              <div style={{ fontSize: '0.78rem', color: GOLD, fontWeight: 600, marginTop: 4 }}>14-day free trial — no card required</div>
+              {isAnnual ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ fontSize: '2.8rem', fontWeight: 900, color: '#fff' }}>£90</span>
+                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>/year</span>
+                  </div>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', textDecoration: 'line-through', marginTop: 2 }}>£108/year</div>
+                  <div style={{ fontSize: '0.78rem', color: GOLD, fontWeight: 600, marginTop: 4 }}>£7.50/month · 2 months free</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ fontSize: '2.8rem', fontWeight: 900, color: '#fff' }}>£9</span>
+                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>/month</span>
+                  </div>
+                  <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 8 }}>For growing churches that need the full toolkit.</p>
+                  <div style={{ fontSize: '0.78rem', color: GOLD, fontWeight: 600, marginTop: 4 }}>14-day free trial — no card required</div>
+                </>
+              )}
             </div>
-            <a href="/register?plan=pro" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 12, background: GOLD, color: NAV, fontWeight: 800, fontSize: '0.95rem', textDecoration: 'none', marginBottom: 28 }}>
-              Start 14-day free trial
+            <a href={`/register?plan=pro&billing=${billing}`}
+              style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 12, background: GOLD, color: NAV, fontWeight: 800, fontSize: '0.95rem', textDecoration: 'none', marginBottom: 28 }}>
+              {isAnnual ? 'Get Pro — £90/year' : 'Start 14-day free trial'}
             </a>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {PRO_FEATURES.map(f => (
@@ -142,10 +176,12 @@ export default function Pricing() {
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: NAV, marginBottom: 24 }}>Common questions</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
             {[
-              { q: 'Do I need a credit card to start?', a: 'No. The Free plan is free forever — no card required.' },
-              { q: 'Can I upgrade at any time?', a: 'Yes. Upgrade from your admin settings and your data carries over.' },
+              { q: 'Do I need a credit card to start?', a: 'No. The Free plan is free forever — no card required. For the Pro monthly trial, you add your card after signup but nothing is charged for 14 days.' },
+              { q: 'Can I upgrade at any time?', a: 'Yes. Upgrade from your admin settings and your data carries over instantly.' },
+              { q: 'What happens after the 14-day trial?', a: 'Your card is charged £9/month automatically. Cancel any time before the trial ends and you won\'t be charged.' },
+              { q: 'What\'s the difference between monthly and annual?', a: 'Annual billing is £90/year — that\'s 2 months free compared to paying monthly. Payment is taken upfront for the year.' },
+              { q: 'Can I switch between monthly and annual?', a: 'Yes. Contact us and we can switch your billing at the next renewal with no penalty.' },
               { q: 'What happens when I hit 100 members on Free?', a: "You can still use the system — you just won't be able to add more members until you upgrade to Pro." },
-              { q: 'Is there an annual discount?', a: 'Annual billing is coming soon with 2 months free. Contact us for early access.' },
             ].map(({ q, a }) => (
               <div key={q}>
                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem', marginBottom: 6 }}>{q}</div>

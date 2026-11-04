@@ -132,9 +132,13 @@ export default function Landing() {
                   </li>
                 ))}
               </ul>
-              <button onClick={() => router.push('/register')}
+              <button onClick={() => router.push('/register?plan=pro&billing=monthly')}
                 style={{ marginTop: 28, background: GOLD, color: NAV, border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
                 Start 14-day free trial
+              </button>
+              <button onClick={() => router.push('/pricing')}
+                style={{ marginTop: 8, background: 'transparent', color: 'rgba(255,255,255,0.5)', border: 'none', padding: '4px', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem' }}>
+                Save with annual billing (£90/yr) →
               </button>
             </div>
             {/* Custom */}

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import Stripe from 'stripe';
 import { supabase } from '@/lib/supabase';
 import { sendEmail } from '@/lib/email';
 
 export async function POST(req) {
   try {
-    const { name, slug, denomination, address, phone, adminEmail, password } = await req.json();
+    const { name, slug, denomination, address, phone, adminEmail, password, plan, billing } = await req.json();
     if (!name || !slug || !adminEmail || !password) return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
 
     const { data: existing } = await supabase.from('cc_churches').select('id').eq('slug', slug).single();
@@ -18,8 +19,9 @@ export async function POST(req) {
     // Create the owner admin account
     await supabase.from('cc_admin_users').insert({ church_id: church.id, name: 'Church Admin', email: adminEmail, role: 'owner', password_hash });
 
-    // Send welcome email (best-effort — don't fail registration if email fails)
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://churchcompass.elmorilx.com';
+
+    // Send welcome email (best-effort)
     try {
       await sendEmail({
         to: adminEmail,
@@ -28,7 +30,40 @@ export async function POST(req) {
       });
     } catch { /* ignore */ }
 
-    return NextResponse.json({ ok: true });
+    // If registering for Pro, create Stripe checkout session
+    let stripeUrl = null;
+    if (plan === 'pro' && process.env.STRIPE_SECRET_KEY) {
+      try {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+        // Create Stripe customer linked to this church
+        const customer = await stripe.customers.create({
+          name,
+          email: adminEmail,
+          metadata: { churchId: church.id, slug },
+        });
+        await supabase.from('cc_churches').update({ stripe_customer_id: customer.id }).eq('id', church.id);
+
+        const isAnnual = billing === 'annual';
+        const priceId = isAnnual ? process.env.STRIPE_PRICE_ID_PRO_ANNUAL : process.env.STRIPE_PRICE_ID_PRO;
+
+        const subscriptionData = { metadata: { churchId: church.id } };
+        if (!isAnnual) subscriptionData.trial_period_days = 14;
+
+        const session = await stripe.checkout.sessions.create({
+          customer: customer.id,
+          mode: 'subscription',
+          line_items: [{ price: priceId, quantity: 1 }],
+          success_url: `${baseUrl}/${slug}/admin?upgraded=1`,
+          cancel_url: `${baseUrl}/${slug}/admin`,
+          metadata: { churchId: church.id },
+          subscription_data: subscriptionData,
+        });
+        stripeUrl = session.url;
+      } catch { /* if Stripe fails, let them in on free and upgrade from settings */ }
+    }
+
+    return NextResponse.json({ ok: true, slug, stripeUrl });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
