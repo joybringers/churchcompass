@@ -125,6 +125,9 @@ function RegisterForm() {
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: '0.85rem', color: '#64748b' }}>
           Already registered? <a href="/" style={{ color: NAV, fontWeight: 600 }}>Find your church</a>
         </p>
+        <p style={{ textAlign: 'center', marginTop: 12, fontSize: '0.78rem', color: '#94a3b8' }}>
+          By registering you agree to our <a href="/terms" style={{ color: '#94a3b8' }}>Terms of Service</a> and <a href="/privacy" style={{ color: '#94a3b8' }}>Privacy Policy</a>
+        </p>
       </div>
     </div>
   );

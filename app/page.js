@@ -174,6 +174,8 @@ export default function Landing() {
         ChurchCompass — church management · by Elmoril · elmorilx.com
         <span style={{ margin: '0 12px' }}>·</span>
         <button onClick={() => router.push('/privacy')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}>Privacy Policy</button>
+        <span style={{ margin: '0 12px' }}>·</span>
+        <button onClick={() => router.push('/terms')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}>Terms of Service</button>
       </footer>
     </div>
   );
