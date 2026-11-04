@@ -4,417 +4,331 @@ import { useCC } from '../layout';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
-const GREEN = '#16a34a';
 
-const BLANK_COLLECTOR = { childName: '', collectorName: '', relationship: '', phone: '' };
-const BLANK_DBS = { fullName: '', role: '', checkType: 'enhanced', checkNumber: '', issueDate: '', renewalDate: '', trainingSafeguarding: false, trainingFirstAid: false, notes: '' };
-const BLANK_INCIDENT = { incidentDate: new Date().toISOString().split('T')[0], personInvolved: '', reportedBy: '', incidentType: 'accident', description: '', actionTaken: '', followUpRequired: false, followUpNotes: '' };
+const DBS_STATUSES = ['valid', 'expiring', 'expired', 'pending'];
+const INC_SEVERITIES = ['low', 'medium', 'high'];
+const INC_STATUSES = ['open', 'under_review', 'closed'];
 
-const INCIDENT_TYPES = { accident: 'Accident', concern: 'Concern', safeguarding: 'Safeguarding', near_miss: 'Near Miss' };
-const INCIDENT_COLORS = { accident: '#f59e0b', concern: '#6366f1', safeguarding: '#ef4444', near_miss: '#94a3b8' };
-const CHECK_TYPES = { basic: 'Basic', standard: 'Standard', enhanced: 'Enhanced' };
+const BLANK_DBS = { personName: '', role: '', dbsNumber: '', issueDate: '', expiryDate: '', status: 'valid', notes: '' };
+const BLANK_INC = { incidentDate: '', title: '', description: '', peopleInvolved: '', actionTaken: '', reportedTo: '', severity: 'low', status: 'open' };
 
-function dbsStatus(renewalDate) {
-  if (!renewalDate) return { label: 'No date', color: '#94a3b8', bg: '#f8fafc' };
-  const days = Math.floor((new Date(renewalDate) - new Date()) / 86400000);
-  if (days < 0) return { label: 'Expired', color: '#ef4444', bg: '#fef2f2' };
-  if (days < 90) return { label: `${days}d left`, color: '#d97706', bg: '#fffbeb' };
-  return { label: 'Valid', color: GREEN, bg: '#f0fdf4' };
+const statusColors = {
+  valid:        { bg: '#f0fdf4', color: '#16a34a' },
+  expiring:     { bg: '#fffbeb', color: '#d97706' },
+  expired:      { bg: '#fef2f2', color: '#dc2626' },
+  pending:      { bg: '#f1f5f9', color: '#475569' },
+};
+const sevColors = {
+  low:    { bg: '#f0fdf4', color: '#16a34a' },
+  medium: { bg: '#fffbeb', color: '#d97706' },
+  high:   { bg: '#fef2f2', color: '#dc2626' },
+};
+const incStatusColors = {
+  open:         { bg: '#fef2f2', color: '#dc2626' },
+  under_review: { bg: '#fffbeb', color: '#d97706' },
+  closed:       { bg: '#f1f5f9', color: '#475569' },
+};
+
+function chip(label, colors) {
+  return (
+    <span style={{ background: colors.bg, color: colors.color, fontSize: '0.7rem', fontWeight: 700, padding: '2px 10px', borderRadius: 20, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+      {label.replace('_', ' ')}
+    </span>
+  );
 }
 
-const inp = { padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
-const lbl = { fontSize: '0.78rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 3 };
-
-function ProGate({ slug }) {
-  return (
-    <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-      <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-        <i className="fas fa-lock" style={{ fontSize: 26, color: GOLD }} />
-      </div>
-      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: NAV, marginBottom: 8 }}>Pro feature</h3>
-      <p style={{ color: '#64748b', fontSize: '0.875rem', maxWidth: 340, margin: '0 auto 24px' }}>
-        Upgrade to Pro to access the DBS tracker and incident log.
-      </p>
-      <a href={`/${slug}/admin/settings`} style={{ background: NAV, color: '#fff', borderRadius: 10, padding: '11px 24px', fontWeight: 700, fontSize: '0.875rem', textDecoration: 'none' }}>
-        Upgrade to Pro →
-      </a>
-    </div>
-  );
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr) - new Date()) / 86400000);
 }
 
 export default function Guard() {
   const ctx = useCC();
-  const [tab, setTab] = useState('collectors');
-  const [collectors, setCollectors] = useState([]);
+  const [tab, setTab] = useState('dbs');
   const [dbsRecords, setDbsRecords] = useState([]);
   const [incidents, setIncidents] = useState([]);
-  const [search, setSearch] = useState('');
-  const [modal, setModal] = useState(null); // null | 'collector' | 'dbs' | 'incident' | obj
-  const [editTarget, setEditTarget] = useState(null);
-  const [form, setForm] = useState({});
+  const [modal, setModal] = useState(null); // null | 'dbs-add' | dbs-obj | 'inc-add' | inc-obj
+  const [dbsForm, setDbsForm] = useState(BLANK_DBS);
+  const [incForm, setIncForm] = useState(BLANK_INC);
   const [saving, setSaving] = useState(false);
 
-  const plan = ctx?.church?.plan || 'free';
-  const isPro = plan === 'pro' || plan === 'custom';
-
-  const loadAll = () => {
+  const load = () => {
     if (!ctx) return;
     const { church, token } = ctx;
     const h = { 'Authorization': `Bearer ${token}` };
-    fetch(`/api/guard/collectors?churchId=${church.id}`, { headers: h }).then(r => r.json()).then(d => setCollectors(d.collectors || []));
-    if (isPro) {
-      fetch(`/api/guard/dbs?churchId=${church.id}`, { headers: h }).then(r => r.json()).then(d => setDbsRecords(d.records || []));
-      fetch(`/api/guard/incidents?churchId=${church.id}`, { headers: h }).then(r => r.json()).then(d => setIncidents(d.incidents || []));
-    }
+    fetch(`/api/dbs-records?churchId=${church.id}`, { headers: h }).then(r => r.json()).then(d => setDbsRecords(d.records || []));
+    fetch(`/api/incidents?churchId=${church.id}`, { headers: h }).then(r => r.json()).then(d => setIncidents(d.incidents || []));
   };
 
-  useEffect(() => { loadAll(); }, [ctx, isPro]);
+  useEffect(() => { load(); }, [ctx]);
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const setD = (k, v) => setDbsForm(f => ({ ...f, [k]: v }));
+  const setI = (k, v) => setIncForm(f => ({ ...f, [k]: v }));
 
-  const openAdd = (type) => {
-    setEditTarget(null);
-    if (type === 'collector') setForm(BLANK_COLLECTOR);
-    else if (type === 'dbs') setForm(BLANK_DBS);
-    else setForm(BLANK_INCIDENT);
-    setModal(type);
-  };
-
-  const openEdit = (type, record) => {
-    setEditTarget(record);
-    if (type === 'collector') {
-      setForm({ childName: record.child_name, collectorName: record.collector_name, relationship: record.relationship || '', phone: record.phone || '' });
-    } else if (type === 'dbs') {
-      setForm({ fullName: record.full_name, role: record.role || '', checkType: record.check_type, checkNumber: record.check_number || '', issueDate: record.issue_date || '', renewalDate: record.renewal_date || '', trainingSafeguarding: record.training_safeguarding, trainingFirstAid: record.training_first_aid, notes: record.notes || '' });
-    } else {
-      setForm({ incidentDate: record.incident_date, personInvolved: record.person_involved || '', reportedBy: record.reported_by || '', incidentType: record.incident_type, description: record.description, actionTaken: record.action_taken || '', followUpRequired: record.follow_up_required, followUpNotes: record.follow_up_notes || '' });
-    }
-    setModal(type);
-  };
-
-  const save = async () => {
+  const saveDbs = async () => {
     setSaving(true);
     const { church, token } = ctx;
     const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-
-    if (modal === 'collector') {
-      const body = { churchId: church.id, ...form };
-      if (editTarget) {
-        // no PUT for collectors — delete + re-add
-        await fetch(`/api/guard/collectors?id=${editTarget.id}`, { method: 'DELETE', headers: h });
-        await fetch('/api/guard/collectors', { method: 'POST', headers: h, body: JSON.stringify(body) });
-      } else {
-        await fetch('/api/guard/collectors', { method: 'POST', headers: h, body: JSON.stringify(body) });
-      }
-    } else if (modal === 'dbs') {
-      const body = { churchId: church.id, ...form };
-      if (editTarget) {
-        await fetch('/api/guard/dbs', { method: 'PUT', headers: h, body: JSON.stringify({ id: editTarget.id, ...body }) });
-      } else {
-        await fetch('/api/guard/dbs', { method: 'POST', headers: h, body: JSON.stringify(body) });
-      }
-    } else if (modal === 'incident') {
-      const body = { churchId: church.id, ...form };
-      if (editTarget) {
-        await fetch('/api/guard/incidents', { method: 'PUT', headers: h, body: JSON.stringify({ id: editTarget.id, ...body }) });
-      } else {
-        await fetch('/api/guard/incidents', { method: 'POST', headers: h, body: JSON.stringify(body) });
-      }
+    if (modal === 'dbs-add') {
+      await fetch('/api/dbs-records', { method: 'POST', headers: h, body: JSON.stringify({ churchId: church.id, ...dbsForm }) });
+    } else {
+      await fetch('/api/dbs-records', { method: 'PUT', headers: h, body: JSON.stringify({ id: modal.id, ...dbsForm }) });
     }
-    setSaving(false);
-    setModal(null);
-    loadAll();
+    setSaving(false); setModal(null); load();
   };
 
-  const remove = async (type, id) => {
-    if (!confirm('Delete this record?')) return;
-    const { token } = ctx;
-    const h = { 'Authorization': `Bearer ${token}` };
-    if (type === 'collector') await fetch(`/api/guard/collectors?id=${id}`, { method: 'DELETE', headers: h });
-    else if (type === 'dbs') await fetch(`/api/guard/dbs?id=${id}`, { method: 'DELETE', headers: h });
-    else await fetch(`/api/guard/incidents?id=${id}`, { method: 'DELETE', headers: h });
-    loadAll();
+  const saveInc = async () => {
+    setSaving(true);
+    const { church, token } = ctx;
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+    if (modal === 'inc-add') {
+      await fetch('/api/incidents', { method: 'POST', headers: h, body: JSON.stringify({ churchId: church.id, ...incForm }) });
+    } else {
+      await fetch('/api/incidents', { method: 'PUT', headers: h, body: JSON.stringify({ id: modal.id, ...incForm }) });
+    }
+    setSaving(false); setModal(null); load();
   };
+
+  const deleteDbs = async (id) => {
+    if (!confirm('Delete this DBS record?')) return;
+    await fetch(`/api/dbs-records?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${ctx.token}` } });
+    load();
+  };
+
+  const deleteInc = async (id) => {
+    if (!confirm('Delete this incident record?')) return;
+    await fetch(`/api/incidents?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${ctx.token}` } });
+    load();
+  };
+
+  const inpStyle = { padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
+  const lbl = { fontSize: '0.78rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 3 };
+  const tabBtn = (id, label, icon) => (
+    <button onClick={() => setTab(id)}
+      style={{ padding: '9px 20px', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', background: tab === id ? NAV : '#f1f5f9', color: tab === id ? '#fff' : '#475569' }}>
+      <i className={`fas ${icon}`} style={{ marginRight: 6 }} />{label}
+    </button>
+  );
+
+  // Stats
+  const expiringSoon = dbsRecords.filter(r => { const d = daysUntil(r.expiry_date); return d !== null && d >= 0 && d <= 90; });
+  const expired = dbsRecords.filter(r => r.status === 'expired' || (r.expiry_date && daysUntil(r.expiry_date) < 0));
+  const openInc = incidents.filter(i => i.status === 'open');
+  const highInc = incidents.filter(i => i.severity === 'high' && i.status !== 'closed');
 
   if (!ctx) return null;
-  const { slug } = ctx;
-
-  const filteredCollectors = collectors.filter(c => `${c.child_name} ${c.collector_name}`.toLowerCase().includes(search.toLowerCase()));
-  const filteredDbs = dbsRecords.filter(r => r.full_name.toLowerCase().includes(search.toLowerCase()));
-  const filteredIncidents = incidents.filter(i => `${i.person_involved} ${i.description}`.toLowerCase().includes(search.toLowerCase()));
-
-  const tabStyle = (t) => ({
-    padding: '10px 18px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', fontFamily: 'inherit',
-    background: tab === t ? NAV : '#f1f5f9',
-    color: tab === t ? '#fff' : '#64748b',
-  });
 
   return (
     <div style={{ padding: '32px 28px', maxWidth: 1000 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <i className="fas fa-shield-halved" style={{ color: GOLD }} />
-            Guard
-          </h1>
-          <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Safeguarding records — authorised collectors, DBS checks, and incident log</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {tab === 'collectors' && <button onClick={() => openAdd('collector')} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}><i className="fas fa-plus" style={{ marginRight: 6 }} />Add collector</button>}
-          {tab === 'dbs' && isPro && <button onClick={() => openAdd('dbs')} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}><i className="fas fa-plus" style={{ marginRight: 6 }} />Add DBS record</button>}
-          {tab === 'incidents' && isPro && <button onClick={() => openAdd('incident')} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}><i className="fas fa-plus" style={{ marginRight: 6 }} />Log incident</button>}
-        </div>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV, marginBottom: 2 }}>
+          <i className="fas fa-shield-halved" style={{ marginRight: 8, color: GOLD }} />Guard
+        </h1>
+        <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Safeguarding: DBS checks and incident log.</p>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 28 }}>
+        {[
+          { label: 'DBS Records', value: dbsRecords.length, icon: 'fa-id-card', color: NAV },
+          { label: 'Expiring Soon', value: expiringSoon.length, icon: 'fa-clock', color: '#d97706', warn: expiringSoon.length > 0 },
+          { label: 'Expired', value: expired.length, icon: 'fa-circle-exclamation', color: '#dc2626', warn: expired.length > 0 },
+          { label: 'Open Incidents', value: openInc.length, icon: 'fa-triangle-exclamation', color: openInc.length > 0 ? '#dc2626' : '#16a34a', warn: openInc.length > 0 },
+        ].map(s => (
+          <div key={s.label} style={{ background: s.warn ? (s.color === '#dc2626' ? '#fef2f2' : '#fffbeb') : '#fff', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)', borderLeft: `3px solid ${s.color}` }}>
+            <div style={{ color: s.color, fontSize: 20, marginBottom: 6 }}><i className={`fas ${s.icon}`} /></div>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: NAV }}>{s.value}</div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{s.label}</div>
+          </div>
+        ))}
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        <button style={tabStyle('collectors')} onClick={() => { setTab('collectors'); setSearch(''); }}>
-          <i className="fas fa-person-circle-check" style={{ marginRight: 6 }} />Authorised Collectors
-        </button>
-        <button style={tabStyle('dbs')} onClick={() => { setTab('dbs'); setSearch(''); }}>
-          <i className="fas fa-id-badge" style={{ marginRight: 6 }} />DBS &amp; Training
-          {!isPro && <i className="fas fa-lock" style={{ marginLeft: 6, fontSize: '0.75rem', opacity: 0.7 }} />}
-        </button>
-        <button style={tabStyle('incidents')} onClick={() => { setTab('incidents'); setSearch(''); }}>
-          <i className="fas fa-triangle-exclamation" style={{ marginRight: 6 }} />Incident Log
-          {!isPro && <i className="fas fa-lock" style={{ marginLeft: 6, fontSize: '0.75rem', opacity: 0.7 }} />}
-        </button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {tabBtn('dbs', 'DBS Records', 'fa-id-card')}
+        {tabBtn('incidents', 'Incident Log', 'fa-triangle-exclamation')}
       </div>
 
-      {/* Search */}
-      {(tab === 'collectors' || isPro) && (
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${tab === 'collectors' ? 'by child or collector name' : tab === 'dbs' ? 'by name' : 'by person or description'}…`}
-          style={{ width: '100%', padding: '11px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: '0.9rem', marginBottom: 16, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#fff' }} />
-      )}
-
-      {/* ── COLLECTORS TAB ── */}
-      {tab === 'collectors' && (
+      {/* DBS tab */}
+      {tab === 'dbs' && (
         <>
-          <div style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: 12, padding: '12px 16px', marginBottom: 16, fontSize: '0.85rem', color: '#1d4ed8', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <i className="fas fa-info-circle" style={{ marginTop: 1 }} />
-            <span>Add the named adults who are authorised to collect each child. Staff can use this list to verify pickups in the Children Check-In screen.</span>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            <button onClick={() => { setDbsForm(BLANK_DBS); setModal('dbs-add'); }}
+              style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}>
+              <i className="fas fa-plus" style={{ marginRight: 6 }} />Add DBS Record
+            </button>
           </div>
-          <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Child</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Authorised Collector</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Relationship</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Phone</th>
-                  <th style={{ padding: '12px 16px' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCollectors.length === 0 ? (
-                  <tr><td colSpan={5} style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8' }}>No authorised collectors added yet.</td></tr>
-                ) : filteredCollectors.map(c => (
-                  <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: 700, color: '#1e293b' }}>{c.child_name}</td>
-                    <td style={{ padding: '12px 16px', color: '#374151' }}>{c.collector_name}</td>
-                    <td style={{ padding: '12px 16px', color: '#64748b' }}>{c.relationship || '—'}</td>
-                    <td style={{ padding: '12px 16px', color: '#64748b' }}>{c.phone || '—'}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button onClick={() => openEdit('collector', c)} style={{ background: 'none', border: 'none', color: NAV, cursor: 'pointer', marginRight: 8, fontSize: '0.85rem' }}>Edit</button>
-                      <button onClick={() => remove('collector', c.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Remove</button>
-                    </td>
+          {dbsRecords.length === 0 ? (
+            <div style={{ background: '#fff', borderRadius: 14, padding: '40px', textAlign: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+              <i className="fas fa-id-card" style={{ fontSize: 32, color: '#e2e8f0', marginBottom: 12, display: 'block' }} />
+              <p style={{ color: '#94a3b8' }}>No DBS records yet. Add one to start tracking.</p>
+            </div>
+          ) : (
+            <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    {['Name', 'Role', 'DBS Number', 'Issue Date', 'Expiry', 'Status', ''].map(h => (
+                      <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, color: '#374151', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.03em', borderBottom: '1px solid #f1f5f9' }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* ── DBS TAB ── */}
-      {tab === 'dbs' && !isPro && <ProGate slug={slug} />}
-      {tab === 'dbs' && isPro && (
-        <>
-          {dbsRecords.some(r => { const s = dbsStatus(r.renewal_date); return s.label === 'Expired' || s.label.includes('d left'); }) && (
-            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 12, padding: '12px 16px', marginBottom: 16, fontSize: '0.85rem', color: '#92400e', display: 'flex', gap: 10 }}>
-              <i className="fas fa-triangle-exclamation" style={{ marginTop: 1, color: '#d97706' }} />
-              <span>Some DBS checks are expired or expiring soon — review and update below.</span>
+                </thead>
+                <tbody>
+                  {dbsRecords.map(r => {
+                    const days = daysUntil(r.expiry_date);
+                    const isExpired = days !== null && days < 0;
+                    const isExpiring = days !== null && days >= 0 && days <= 90;
+                    const statusKey = isExpired ? 'expired' : isExpiring ? 'expiring' : r.status;
+                    return (
+                      <tr key={r.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                        <td style={{ padding: '12px 16px', fontWeight: 600, color: NAV }}>{r.person_name}</td>
+                        <td style={{ padding: '12px 16px', color: '#64748b' }}>{r.role || '—'}</td>
+                        <td style={{ padding: '12px 16px', color: '#64748b', fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.dbs_number || '—'}</td>
+                        <td style={{ padding: '12px 16px', color: '#64748b' }}>{r.issue_date ? new Date(r.issue_date).toLocaleDateString('en-GB') : '—'}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          {r.expiry_date ? (
+                            <span style={{ color: isExpired ? '#dc2626' : isExpiring ? '#d97706' : '#374151', fontWeight: isExpired || isExpiring ? 700 : 400 }}>
+                              {new Date(r.expiry_date).toLocaleDateString('en-GB')}
+                              {isExpiring && !isExpired && <span style={{ fontSize: '0.7rem', marginLeft: 4 }}>({days}d)</span>}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>{chip(statusKey, statusColors[statusKey] || statusColors.valid)}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={() => { setDbsForm({ personName: r.person_name, role: r.role || '', dbsNumber: r.dbs_number || '', issueDate: r.issue_date || '', expiryDate: r.expiry_date || '', status: r.status, notes: r.notes || '' }); setModal(r); }}
+                              style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Edit</button>
+                            <button onClick={() => deleteDbs(r.id)}
+                              style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', fontSize: '0.78rem' }}>
+                              <i className="fas fa-trash" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
-          <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Name</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Role</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Check Type</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Renewal</th>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Training</th>
-                  <th style={{ padding: '12px 16px' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDbs.length === 0 ? (
-                  <tr><td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8' }}>No DBS records added yet.</td></tr>
-                ) : filteredDbs.map(r => {
-                  const status = dbsStatus(r.renewal_date);
-                  return (
-                    <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#1e293b' }}>{r.full_name}</td>
-                      <td style={{ padding: '12px 16px', color: '#64748b' }}>{r.role || '—'}</td>
-                      <td style={{ padding: '12px 16px', color: '#374151', textTransform: 'capitalize' }}>{CHECK_TYPES[r.check_type] || r.check_type}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'inline-block', background: status.bg, color: status.color, borderRadius: 6, padding: '3px 10px', fontWeight: 700, fontSize: '0.78rem' }}>{status.label}</div>
-                        {r.renewal_date && <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 2 }}>{new Date(r.renewal_date).toLocaleDateString('en-GB')}</div>}
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {r.training_safeguarding && <span style={{ background: '#eff6ff', color: '#1d4ed8', borderRadius: 5, padding: '2px 8px', fontSize: '0.72rem', fontWeight: 600 }}>Safeguarding</span>}
-                          {r.training_first_aid && <span style={{ background: '#f0fdf4', color: '#15803d', borderRadius: 5, padding: '2px 8px', fontSize: '0.72rem', fontWeight: 600 }}>First Aid</span>}
-                          {!r.training_safeguarding && !r.training_first_aid && <span style={{ color: '#94a3b8', fontSize: '0.78rem' }}>None recorded</span>}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                        <button onClick={() => openEdit('dbs', r)} style={{ background: 'none', border: 'none', color: NAV, cursor: 'pointer', marginRight: 8, fontSize: '0.85rem' }}>Edit</button>
-                        <button onClick={() => remove('dbs', r.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Delete</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
         </>
       )}
 
-      {/* ── INCIDENTS TAB ── */}
-      {tab === 'incidents' && !isPro && <ProGate slug={slug} />}
-      {tab === 'incidents' && isPro && (
-        <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Date</th>
-                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Type</th>
-                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Person</th>
-                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Summary</th>
-                <th style={{ textAlign: 'left', padding: '12px 16px', color: '#64748b', fontWeight: 600 }}>Follow Up</th>
-                <th style={{ padding: '12px 16px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredIncidents.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8' }}>No incidents logged.</td></tr>
-              ) : filteredIncidents.map(i => (
-                <tr key={i.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '12px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{new Date(i.incident_date).toLocaleDateString('en-GB')}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ background: INCIDENT_COLORS[i.incident_type] + '20', color: INCIDENT_COLORS[i.incident_type], borderRadius: 6, padding: '3px 10px', fontWeight: 700, fontSize: '0.78rem', textTransform: 'capitalize' }}>
-                      {INCIDENT_TYPES[i.incident_type] || i.incident_type}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', color: '#374151' }}>{i.person_involved || '—'}</td>
-                  <td style={{ padding: '12px 16px', color: '#64748b', maxWidth: 260 }}>
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.description}</div>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {i.follow_up_required
-                      ? <span style={{ color: '#d97706', fontWeight: 700, fontSize: '0.8rem' }}><i className="fas fa-circle-exclamation" style={{ marginRight: 4 }} />Required</span>
-                      : <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>None</span>
-                    }
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <button onClick={() => openEdit('incident', i)} style={{ background: 'none', border: 'none', color: NAV, cursor: 'pointer', marginRight: 8, fontSize: '0.85rem' }}>Edit</button>
-                    <button onClick={() => remove('incident', i.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Delete</button>
-                  </td>
-                </tr>
+      {/* Incidents tab */}
+      {tab === 'incidents' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            <button onClick={() => { setIncForm({ ...BLANK_INC, incidentDate: new Date().toISOString().split('T')[0] }); setModal('inc-add'); }}
+              style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}>
+              <i className="fas fa-plus" style={{ marginRight: 6 }} />Log Incident
+            </button>
+          </div>
+          {incidents.length === 0 ? (
+            <div style={{ background: '#fff', borderRadius: 14, padding: '40px', textAlign: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+              <i className="fas fa-triangle-exclamation" style={{ fontSize: 32, color: '#e2e8f0', marginBottom: 12, display: 'block' }} />
+              <p style={{ color: '#94a3b8' }}>No incidents logged.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {incidents.map(inc => (
+                <div key={inc.id} style={{ background: '#fff', borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)', borderLeft: `4px solid ${sevColors[inc.severity]?.color || '#94a3b8'}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem' }}>{inc.title}</span>
+                        {chip(inc.severity, sevColors[inc.severity] || sevColors.low)}
+                        {chip(inc.status, incStatusColors[inc.status] || incStatusColors.open)}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: inc.description ? 8 : 0 }}>
+                        {new Date(inc.incident_date).toLocaleDateString('en-GB')}
+                        {inc.created_by && ` · logged by ${inc.created_by}`}
+                      </div>
+                      {inc.description && <p style={{ fontSize: '0.85rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>{inc.description}</p>}
+                      {inc.people_involved && <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '6px 0 0', lineHeight: 1.4 }}><strong>People involved:</strong> {inc.people_involved}</p>}
+                      {inc.action_taken && <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0', lineHeight: 1.4 }}><strong>Action taken:</strong> {inc.action_taken}</p>}
+                      {inc.reported_to && <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0' }}><strong>Reported to:</strong> {inc.reported_to}</p>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => { setIncForm({ incidentDate: inc.incident_date, title: inc.title, description: inc.description || '', peopleInvolved: inc.people_involved || '', actionTaken: inc.action_taken || '', reportedTo: inc.reported_to || '', severity: inc.severity, status: inc.status }); setModal(inc); }}
+                        style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 7, padding: '6px 12px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Edit</button>
+                      <button onClick={() => deleteInc(inc.id)}
+                        style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 7, padding: '6px 10px', cursor: 'pointer', fontSize: '0.78rem' }}>
+                        <i className="fas fa-trash" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* DBS modal */}
+      {(modal === 'dbs-add' || (modal && modal.person_name !== undefined)) && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>
+              {modal === 'dbs-add' ? 'Add DBS Record' : 'Edit DBS Record'}
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div><label style={lbl}>Full name *</label><input style={inpStyle} value={dbsForm.personName} onChange={e => setD('personName', e.target.value)} placeholder="e.g. Sarah Johnson" /></div>
+              <div><label style={lbl}>Role / position</label><input style={inpStyle} value={dbsForm.role} onChange={e => setD('role', e.target.value)} placeholder="e.g. Children's Worker" /></div>
+              <div><label style={lbl}>DBS Certificate number</label><input style={inpStyle} value={dbsForm.dbsNumber} onChange={e => setD('dbsNumber', e.target.value)} placeholder="e.g. 001234567890" /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={lbl}>Issue date</label><input type="date" style={inpStyle} value={dbsForm.issueDate} onChange={e => setD('issueDate', e.target.value)} /></div>
+                <div><label style={lbl}>Expiry date</label><input type="date" style={inpStyle} value={dbsForm.expiryDate} onChange={e => setD('expiryDate', e.target.value)} /></div>
+              </div>
+              <div><label style={lbl}>Status</label>
+                <select style={inpStyle} value={dbsForm.status} onChange={e => setD('status', e.target.value)}>
+                  {DBS_STATUSES.map(s => <option key={s} value={s} style={{ textTransform: 'capitalize' }}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                </select>
+              </div>
+              <div><label style={lbl}>Notes</label><textarea rows={2} style={{ ...inpStyle, resize: 'vertical' }} value={dbsForm.notes} onChange={e => setD('notes', e.target.value)} /></div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={() => setModal(null)} style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={saveDbs} disabled={saving || !dbsForm.personName}
+                style={{ flex: 1, background: saving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── MODALS ── */}
-      {modal && (
+      {/* Incident modal */}
+      {(modal === 'inc-add' || (modal && modal.title !== undefined)) && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
-
-            {/* Collector modal */}
-            {modal === 'collector' && (
-              <>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>{editTarget ? 'Edit' : 'Add'} Authorised Collector</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div><label style={lbl}>Child's name *</label><input style={inp} value={form.childName} onChange={e => set('childName', e.target.value)} placeholder="e.g. Emma Johnson" /></div>
-                  <div><label style={lbl}>Collector's name *</label><input style={inp} value={form.collectorName} onChange={e => set('collectorName', e.target.value)} placeholder="e.g. Sarah Johnson" /></div>
-                  <div><label style={lbl}>Relationship</label><input style={inp} value={form.relationship} onChange={e => set('relationship', e.target.value)} placeholder="e.g. Mother, Grandparent, Aunt" /></div>
-                  <div><label style={lbl}>Phone number</label><input style={inp} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="e.g. 07700 900123" /></div>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>
+              {modal === 'inc-add' ? 'Log Incident' : 'Edit Incident'}
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div><label style={lbl}>Incident date *</label><input type="date" style={inpStyle} value={incForm.incidentDate} onChange={e => setI('incidentDate', e.target.value)} /></div>
+              <div><label style={lbl}>Title / summary *</label><input style={inpStyle} value={incForm.title} onChange={e => setI('title', e.target.value)} placeholder="Brief description of the incident" /></div>
+              <div><label style={lbl}>Full description</label><textarea rows={3} style={{ ...inpStyle, resize: 'vertical' }} value={incForm.description} onChange={e => setI('description', e.target.value)} /></div>
+              <div><label style={lbl}>People involved</label><textarea rows={2} style={{ ...inpStyle, resize: 'vertical' }} value={incForm.peopleInvolved} onChange={e => setI('peopleInvolved', e.target.value)} placeholder="Names of people involved" /></div>
+              <div><label style={lbl}>Action taken</label><textarea rows={2} style={{ ...inpStyle, resize: 'vertical' }} value={incForm.actionTaken} onChange={e => setI('actionTaken', e.target.value)} placeholder="What steps were taken?" /></div>
+              <div><label style={lbl}>Reported to</label><input style={inpStyle} value={incForm.reportedTo} onChange={e => setI('reportedTo', e.target.value)} placeholder="e.g. DSL, police, social services" /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={lbl}>Severity</label>
+                  <select style={inpStyle} value={incForm.severity} onChange={e => setI('severity', e.target.value)}>
+                    {INC_SEVERITIES.map(s => <option key={s} value={s} style={{ textTransform: 'capitalize' }}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  </select>
                 </div>
-              </>
-            )}
-
-            {/* DBS modal */}
-            {modal === 'dbs' && (
-              <>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>{editTarget ? 'Edit' : 'Add'} DBS Record</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div><label style={lbl}>Full name *</label><input style={inp} value={form.fullName} onChange={e => set('fullName', e.target.value)} /></div>
-                  <div><label style={lbl}>Role / position</label><input style={inp} value={form.role} onChange={e => set('role', e.target.value)} placeholder="e.g. Children's Worker, Youth Leader" /></div>
-                  <div><label style={lbl}>Check type</label>
-                    <select style={inp} value={form.checkType} onChange={e => set('checkType', e.target.value)}>
-                      {Object.entries(CHECK_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div><label style={lbl}>Certificate / reference number</label><input style={inp} value={form.checkNumber} onChange={e => set('checkNumber', e.target.value)} /></div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div><label style={lbl}>Issue date</label><input style={inp} type="date" value={form.issueDate} onChange={e => set('issueDate', e.target.value)} /></div>
-                    <div><label style={lbl}>Renewal date</label><input style={inp} type="date" value={form.renewalDate} onChange={e => set('renewalDate', e.target.value)} /></div>
-                  </div>
-                  <div>
-                    <label style={{ ...lbl, marginBottom: 8 }}>Training completed</label>
-                    <div style={{ display: 'flex', gap: 16 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={form.trainingSafeguarding} onChange={e => set('trainingSafeguarding', e.target.checked)} />
-                        Safeguarding
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={form.trainingFirstAid} onChange={e => set('trainingFirstAid', e.target.checked)} />
-                        First Aid
-                      </label>
-                    </div>
-                  </div>
-                  <div><label style={lbl}>Notes</label><textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} /></div>
+                <div><label style={lbl}>Status</label>
+                  <select style={inpStyle} value={incForm.status} onChange={e => setI('status', e.target.value)}>
+                    {INC_STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
+                  </select>
                 </div>
-              </>
-            )}
-
-            {/* Incident modal */}
-            {modal === 'incident' && (
-              <>
-                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>{editTarget ? 'Edit' : 'Log'} Incident</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div><label style={lbl}>Date *</label><input style={inp} type="date" value={form.incidentDate} onChange={e => set('incidentDate', e.target.value)} /></div>
-                    <div><label style={lbl}>Type</label>
-                      <select style={inp} value={form.incidentType} onChange={e => set('incidentType', e.target.value)}>
-                        {Object.entries(INCIDENT_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div><label style={lbl}>Person involved</label><input style={inp} value={form.personInvolved} onChange={e => set('personInvolved', e.target.value)} /></div>
-                  <div><label style={lbl}>Reported by</label><input style={inp} value={form.reportedBy} onChange={e => set('reportedBy', e.target.value)} /></div>
-                  <div><label style={lbl}>Description *</label><textarea rows={3} style={{ ...inp, resize: 'vertical' }} value={form.description} onChange={e => set('description', e.target.value)} placeholder="What happened?" /></div>
-                  <div><label style={lbl}>Action taken</label><textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={form.actionTaken} onChange={e => set('actionTaken', e.target.value)} placeholder="What was done in response?" /></div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', cursor: 'pointer', fontWeight: 600, color: '#374151' }}>
-                    <input type="checkbox" checked={form.followUpRequired} onChange={e => set('followUpRequired', e.target.checked)} />
-                    Follow-up required
-                  </label>
-                  {form.followUpRequired && (
-                    <div><label style={lbl}>Follow-up notes</label><textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={form.followUpNotes} onChange={e => set('followUpNotes', e.target.value)} /></div>
-                  )}
-                </div>
-              </>
-            )}
-
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button onClick={() => setModal(null)} style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={save} disabled={saving || (modal === 'collector' && (!form.childName || !form.collectorName)) || (modal === 'dbs' && !form.fullName) || (modal === 'incident' && (!form.description || !form.incidentDate))}
-                style={{ flex: 1, background: saving ? '#94a3b8' : modal === 'incident' ? '#ef4444' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-                {saving ? 'Saving…' : editTarget ? 'Update' : modal === 'incident' ? 'Log Incident' : 'Save'}
+              <button onClick={saveInc} disabled={saving || !incForm.title || !incForm.incidentDate}
+                style={{ flex: 1, background: saving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
