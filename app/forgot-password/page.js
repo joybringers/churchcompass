@@ -31,7 +31,8 @@ export default function ForgotPassword() {
   const inp = { padding: '11px 14px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '1rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: '#fff', borderRadius: 16, padding: '36px 32px', maxWidth: 400, width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -73,6 +74,15 @@ export default function ForgotPassword() {
           </>
         )}
       </div>
+    </div>
+
+      <footer style={{ background: '#0f1f35', padding: '20px 32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
+        ChurchCompass — church management · by Elmoril · elmorilx.com
+        <span style={{ margin: '0 12px' }}>·</span>
+        <a href="/privacy" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', textDecoration: 'underline' }}>Privacy Policy</a>
+        <span style={{ margin: '0 12px' }}>·</span>
+        <a href="/terms" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', textDecoration: 'underline' }}>Terms of Service</a>
+      </footer>
     </div>
   );
 }

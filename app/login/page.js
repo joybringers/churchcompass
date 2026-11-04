@@ -31,7 +31,8 @@ export default function Login() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32, cursor: 'pointer' }} onClick={() => router.push('/')}>
         <div style={{ width: 32, height: 32, borderRadius: '50%', background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <i className="fas fa-compass" style={{ color: NAV, fontSize: 16 }} />
@@ -72,6 +73,15 @@ export default function Login() {
           Not registered? <button onClick={() => router.push('/register')} style={{ background: 'none', border: 'none', color: NAV, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: '0.85rem' }}>Register your church</button>
         </p>
       </div>
+      </div>
+
+      <footer style={{ background: '#0f1f35', padding: '20px 32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
+        ChurchCompass — church management · by Elmoril · elmorilx.com
+        <span style={{ margin: '0 12px' }}>·</span>
+        <a href="/privacy" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', textDecoration: 'underline' }}>Privacy Policy</a>
+        <span style={{ margin: '0 12px' }}>·</span>
+        <a href="/terms" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', textDecoration: 'underline' }}>Terms of Service</a>
+      </footer>
     </div>
   );
 }

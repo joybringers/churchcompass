@@ -79,10 +79,19 @@ function ResetForm() {
 
 export default function ResetPassword() {
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <Suspense fallback={<p style={{ color: '#64748b' }}>Loading…</p>}>
-        <ResetForm />
-      </Suspense>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <Suspense fallback={<p style={{ color: '#64748b' }}>Loading…</p>}>
+          <ResetForm />
+        </Suspense>
+      </div>
+      <footer style={{ background: '#0f1f35', padding: '20px 32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
+        ChurchCompass — church management · by Elmoril · elmorilx.com
+        <span style={{ margin: '0 12px' }}>·</span>
+        <a href="/privacy" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', textDecoration: 'underline' }}>Privacy Policy</a>
+        <span style={{ margin: '0 12px' }}>·</span>
+        <a href="/terms" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', textDecoration: 'underline' }}>Terms of Service</a>
+      </footer>
     </div>
   );
 }
