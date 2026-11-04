@@ -46,7 +46,8 @@ function RegisterForm() {
   const lbl = { fontSize: '0.85rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
         <div style={{ width: 32, height: 32, borderRadius: '50%', background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <i className="fas fa-compass" style={{ color: NAV, fontSize: 16 }} />
@@ -129,6 +130,15 @@ function RegisterForm() {
           By registering you agree to our <a href="/terms" style={{ color: '#94a3b8' }}>Terms of Service</a> and <a href="/privacy" style={{ color: '#94a3b8' }}>Privacy Policy</a>
         </p>
       </div>
+      </div>
+
+      <footer style={{ background: '#0f1f35', padding: '20px 32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
+        ChurchCompass — church management · by Elmoril · elmorilx.com
+        <span style={{ margin: '0 12px' }}>·</span>
+        <a href="/privacy" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', textDecoration: 'underline' }}>Privacy Policy</a>
+        <span style={{ margin: '0 12px' }}>·</span>
+        <a href="/terms" style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', textDecoration: 'underline' }}>Terms of Service</a>
+      </footer>
     </div>
   );
 }
