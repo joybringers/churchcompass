@@ -49,9 +49,6 @@ export default function Landing() {
 
       <section className="cc-hero" style={{ background: `linear-gradient(135deg, ${NAV} 0%, #2d5282 100%)`, textAlign: 'center', color: '#fff', flex: 1 }}>
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
-          <div style={{ display: 'inline-block', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 20, padding: '6px 16px', fontSize: '0.8rem', color: GOLD, fontWeight: 600, marginBottom: 24, letterSpacing: '0.06em' }}>
-            FREE PLAN AVAILABLE
-          </div>
           <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 800, lineHeight: 1.15, marginBottom: 20 }}>
             Simple tools for growing churches
           </h1>
