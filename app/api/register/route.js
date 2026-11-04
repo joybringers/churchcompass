@@ -26,7 +26,7 @@ export async function POST(req) {
       await sendEmail({
         to: adminEmail,
         subject: `Welcome to ChurchCompass — ${name}`,
-        body: `Hi there,\n\nWelcome to ChurchCompass! Your church "${name}" has been registered successfully.\n\nHere are your details:\n  Church slug: ${slug}\n  Admin email: ${adminEmail}\n\nYou can log in to your admin dashboard here:\n  ${baseUrl}/${slug}/admin\n\nSet up your kiosk for check-in:\n  ${baseUrl}/${slug}/signin\n\nFirst-timer welcome form (share this link or print a QR code):\n  ${baseUrl}/${slug}/first-timer\n\nIf you have any questions, reply to this email or visit elmorilx.com.\n\nThe ChurchCompass Team\nPowered by Elmoril`,
+        body: `Hi there,\n\nWelcome to ChurchCompass! Your church "${name}" has been registered successfully.\n\nHere are your details:\n  Church slug: ${slug}\n  Admin email: ${adminEmail}\n\nYou can log in to your admin dashboard here:\n  ${baseUrl}/${slug}/admin\n\nSet up your kiosk for check-in:\n  ${baseUrl}/${slug}/signin\n\nFirst-timer welcome form (share this link or print a QR code):\n  ${baseUrl}/${slug}/first-timer\n\nIf you have any questions, email admin@elmorilx.com or visit https://www.elmorilx.com/contact\n\nThe ChurchCompass Team\nPowered by Elmoril`,
       });
     } catch { /* ignore */ }
 
