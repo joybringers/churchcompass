@@ -17,6 +17,7 @@ const navItems = [
   { label: 'Groups',       icon: 'fa-layer-group',    path: '/groups' },
   { label: 'Guard',        icon: 'fa-shield-halved',  path: '/guard' },
   { label: 'First Timers', icon: 'fa-user-plus',      path: '/first-timers' },
+  { label: 'Communications', icon: 'fa-envelope',    path: '/communications' },
   { label: 'Reports',      icon: 'fa-chart-bar',      path: '/reports' },
   { label: 'Settings',     icon: 'fa-gear',           path: '/settings' },
 ];
