@@ -54,7 +54,7 @@ export default function Members() {
     if (!ctx) return;
     const { church, token } = ctx;
     fetch(`/api/members?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setMembers(d.members || []));
-    fetch(`/api/custom-fields?churchId=${church.id}&formType=member`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setMemberFields(d.fields || []));
+    fetch(`/api/custom-fields?churchId=${church.id}&formType=members`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setMemberFields(d.fields || []));
   };
 
   useEffect(() => { load(); }, [ctx]);
@@ -406,21 +406,21 @@ export default function Members() {
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 10 }}>Custom fields</div>
                   {memberFields.map(f => (
                     <div key={f.id} style={{ marginBottom: 10 }}>
-                      <label style={lbl}>{f.field_label}{f.is_required ? ' *' : ''}</label>
+                      <label style={lbl}>{f.label}{f.required ? ' *' : ''}</label>
                       {f.field_type === 'textarea' ? (
-                        <textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.is_required} />
-                      ) : f.field_type === 'select' ? (
-                        <select style={inp} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.is_required}>
+                        <textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.required} />
+                      ) : f.field_type === 'dropdown' ? (
+                        <select style={inp} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.required}>
                           <option value="">— select —</option>
-                          {(f.field_options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                          {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       ) : f.field_type === 'checkbox' ? (
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.875rem' }}>
                           <input type="checkbox" checked={customValues[f.id] === 'true'} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.checked ? 'true' : 'false' }))} />
-                          {f.field_label}
+                          {f.label}
                         </label>
                       ) : (
-                        <input style={inp} type={f.field_type} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.is_required} />
+                        <input style={inp} type={f.field_type === 'number' ? 'number' : f.field_type === 'date' ? 'date' : 'text'} value={customValues[f.id] || ''} onChange={e => setCustomValues(v => ({ ...v, [f.id]: e.target.value }))} required={f.required} />
                       )}
                     </div>
                   ))}
