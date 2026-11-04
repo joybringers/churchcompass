@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useCC } from '../layout';
 
 const NAV = '#1e3a5f';
@@ -31,6 +32,7 @@ function parseCSV(text) {
 
 export default function Members() {
   const ctx = useCC();
+  const router = useRouter();
   const [members, setMembers] = useState([]);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all'); // 'all' | 'families'
@@ -304,6 +306,7 @@ export default function Members() {
                   <td style={{ padding: '12px 16px', color: '#64748b' }}>{m.email || '—'}</td>
                   <td style={{ padding: '12px 16px', color: '#64748b' }}>{m.phone || '—'}</td>
                   <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <button onClick={() => router.push(`/${ctx.slug}/admin/members/${m.id}`)} style={{ background: 'none', border: 'none', color: '#0891b2', cursor: 'pointer', marginRight: 8, fontSize: '0.85rem', fontWeight: 600 }}>View</button>
                     <button onClick={() => openEdit(m)} style={{ background: 'none', border: 'none', color: NAV, cursor: 'pointer', marginRight: 8, fontSize: '0.85rem' }}>Edit</button>
                     <button onClick={() => remove(m.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Delete</button>
                   </td>
