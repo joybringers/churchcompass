@@ -1,13 +1,65 @@
 'use client';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 
+function ContactModal({ onClose }) {
+  const [form, setForm] = useState({ name: '', churchName: '', email: '', message: '' });
+  const [status, setStatus] = useState('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+  const inp = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none', color: '#1e293b' };
+  async function submit(e) {
+    e.preventDefault(); setStatus('sending'); setErrorMsg('');
+    try {
+      const res = await fetch('/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const j = await res.json();
+      if (!res.ok) { setErrorMsg(j.error || 'Something went wrong.'); setStatus('error'); return; }
+      setStatus('done');
+    } catch { setErrorMsg('Network error. Please try again.'); setStatus('error'); }
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '36px 32px', maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8', lineHeight: 1 }}>×</button>
+        {status === 'done' ? (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </div>
+            <h3 style={{ color: NAV, fontWeight: 800, fontSize: '1.2rem', marginBottom: 8 }}>Message sent!</h3>
+            <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.6 }}>We'll get back to you within 1–2 business days. Check your inbox for a confirmation.</p>
+            <button onClick={onClose} style={{ marginTop: 24, padding: '11px 28px', borderRadius: 10, background: NAV, color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+          </div>
+        ) : (
+          <>
+            <h2 style={{ color: NAV, fontWeight: 800, fontSize: '1.3rem', marginBottom: 4 }}>Talk to us about Custom</h2>
+            <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 24 }}>Tell us about your church or network and we'll be in touch.</p>
+            <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div><label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: NAV, marginBottom: 5 }}>Your name *</label><input style={inp} value={form.name} onChange={set('name')} required placeholder="John Smith" /></div>
+              <div><label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: NAV, marginBottom: 5 }}>Church / organisation name</label><input style={inp} value={form.churchName} onChange={set('churchName')} placeholder="City Life Church" /></div>
+              <div><label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: NAV, marginBottom: 5 }}>Your email *</label><input style={inp} type="email" value={form.email} onChange={set('email')} required placeholder="john@citychurch.org" /></div>
+              <div><label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: NAV, marginBottom: 5 }}>Message *</label><textarea style={{ ...inp, minHeight: 100, resize: 'vertical' }} value={form.message} onChange={set('message')} required placeholder="Tell us about your church — size, locations, what you need..." /></div>
+              {status === 'error' && <p style={{ color: '#ef4444', fontSize: '0.85rem', margin: 0 }}>{errorMsg}</p>}
+              <button type="submit" disabled={status === 'sending'} style={{ padding: '13px', borderRadius: 10, background: NAV, color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.95rem', cursor: status === 'sending' ? 'not-allowed' : 'pointer', opacity: status === 'sending' ? 0.7 : 1, fontFamily: 'inherit' }}>
+                {status === 'sending' ? 'Sending…' : 'Send message'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Landing() {
   const router = useRouter();
+  const [showContact, setShowContact] = useState(false);
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {showContact && <ContactModal onClose={() => setShowContact(false)} />}
       <style>{`
         .cc-nav { padding: 14px 20px !important; }
         .cc-nav-logo-text { font-size: 1rem !important; }
@@ -153,10 +205,10 @@ export default function Landing() {
                   </li>
                 ))}
               </ul>
-              <a href="mailto:hello@elmorilx.com"
-                style={{ marginTop: 28, background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'none', textAlign: 'center', display: 'block' }}>
+              <button onClick={() => setShowContact(true)}
+                style={{ marginTop: 28, background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', textAlign: 'center', width: '100%', fontFamily: 'inherit' }}>
                 Contact us
-              </a>
+              </button>
             </div>
           </div>
         </div>
