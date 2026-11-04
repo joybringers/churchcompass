@@ -23,8 +23,8 @@ export async function GET(req) {
     supabase.from('cc_first_timers').select('church_id, created_at'),
     supabase.from('cc_events').select('church_id, created_at'),
     supabase.from('cc_event_registrations').select('church_id'),
-    supabase.from('cc_giving_records').select('church_id, amount').throwOnError().catch(() => ({ data: [] })),
-    supabase.from('cc_admin_users').select('church_id, role').throwOnError().catch(() => ({ data: [] })),
+    supabase.from('cc_giving_records').select('church_id, amount').then(r => ({ data: r.data || [] })).catch(() => ({ data: [] })),
+    supabase.from('cc_admin_users').select('church_id, role').then(r => ({ data: r.data || [] })).catch(() => ({ data: [] })),
   ]);
 
   const churches = churchRes.data || [];
