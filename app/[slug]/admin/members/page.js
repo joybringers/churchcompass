@@ -8,6 +8,27 @@ const GOLD = '#f59e0b';
 const BLANK = { firstName: '', lastName: '', email: '', phone: '', dob: '', memberType: 'adult', notes: '', parentId: '' };
 const FREE_LIMIT = 100;
 
+const CSV_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'dob', 'memberType', 'notes'];
+const CSV_LABELS = { firstName: 'First name', lastName: 'Last name', email: 'Email', phone: 'Phone', dob: 'Date of birth', memberType: 'Member type', notes: 'Notes' };
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return { headers: [], rows: [] };
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const rows = lines.slice(1).map(line => {
+    const cols = [];
+    let cur = '', inQ = false;
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    cols.push(cur.trim());
+    return Object.fromEntries(headers.map((h, i) => [h, cols[i] || '']));
+  }).filter(r => Object.values(r).some(v => v));
+  return { headers, rows };
+}
+
 export default function Members() {
   const ctx = useCC();
   const [members, setMembers] = useState([]);
@@ -18,6 +39,12 @@ export default function Members() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [csvModal, setCsvModal] = useState(false);
+  const [csvHeaders, setCsvHeaders] = useState([]);
+  const [csvRows, setCsvRows] = useState([]);
+  const [csvMapping, setCsvMapping] = useState({});
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvResult, setCsvResult] = useState(null);
   const [memberFields, setMemberFields] = useState([]);
   const [customValues, setCustomValues] = useState({});
 
@@ -128,6 +155,62 @@ export default function Members() {
     const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='members.csv'; a.click();
   };
 
+  const openCsvImport = () => {
+    if ((ctx?.church?.plan || 'free') === 'free') {
+      window.location.href = `/${ctx.slug}/admin/settings`;
+      return;
+    }
+    setCsvRows([]); setCsvHeaders([]); setCsvMapping({}); setCsvResult(null); setCsvModal(true);
+  };
+
+  const handleCsvFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const { headers, rows } = parseCSV(ev.target.result);
+      setCsvHeaders(headers);
+      setCsvRows(rows);
+      // Auto-map columns with matching names
+      const autoMap = {};
+      CSV_FIELDS.forEach(field => {
+        const match = headers.find(h => h.toLowerCase().replace(/[\s_-]/g, '') === field.toLowerCase() ||
+          h.toLowerCase() === CSV_LABELS[field].toLowerCase() ||
+          (field === 'firstName' && /first.*name/i.test(h)) ||
+          (field === 'lastName' && /last.*name|surname/i.test(h)) ||
+          (field === 'memberType' && /type|member.type/i.test(h)) ||
+          (field === 'dob' && /birth|dob/i.test(h))
+        );
+        if (match) autoMap[field] = match;
+      });
+      setCsvMapping(autoMap);
+      setCsvResult(null);
+    };
+    reader.readAsText(file);
+  };
+
+  const runCsvImport = async () => {
+    setCsvImporting(true);
+    const { church, token } = ctx;
+    const rows = csvRows.map(row => {
+      const r = {};
+      CSV_FIELDS.forEach(f => { if (csvMapping[f]) r[f] = row[csvMapping[f]] || ''; });
+      if (!r.memberType || !['adult', 'child', 'visitor', 'staff'].includes(r.memberType?.toLowerCase())) r.memberType = 'adult';
+      else r.memberType = r.memberType.toLowerCase();
+      return r;
+    }).filter(r => r.firstName || r.lastName);
+
+    const res = await fetch('/api/members/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ churchId: church.id, members: rows }),
+    });
+    const data = await res.json();
+    setCsvImporting(false);
+    setCsvResult(data);
+    if (data.ok) load();
+  };
+
   const filtered = members.filter(m => `${m.first_name} ${m.last_name} ${m.email}`.toLowerCase().includes(search.toLowerCase()));
   const memberById = Object.fromEntries(members.map(m => [m.id, m]));
   const adults = members.filter(m => m.member_type !== 'child');
@@ -152,6 +235,9 @@ export default function Members() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={importVisitors} disabled={importing} style={{ background: importing ? '#94a3b8' : '#f0fdf4', color: importing ? '#fff' : '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: 10, padding: '10px 16px', fontWeight: 600, cursor: importing ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
             <i className="fas fa-user-check" style={{ marginRight: 6 }} />{importing ? 'Importing…' : 'Import visitors'}
+          </button>
+          <button onClick={openCsvImport} style={{ background: '#f0f9ff', color: '#0369a1', border: '1.5px solid #bae6fd', borderRadius: 10, padding: '10px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>
+            <i className="fas fa-file-csv" style={{ marginRight: 6 }} />Import CSV
           </button>
           <button onClick={exportCsv} style={{ background: '#f1f5f9', color: NAV, border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>
             <i className="fas fa-download" style={{ marginRight: 6 }} />Export CSV
@@ -359,6 +445,117 @@ export default function Members() {
             {importResult.skipped > 0 && <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 0 }}>{importResult.skipped} already existed — skipped</p>}
             <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: 12 }}>They can now search their name at the kiosk to sign in.</p>
             <button onClick={() => setImportResult(null)} style={{ marginTop: 20, background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px 28px', fontWeight: 700, cursor: 'pointer' }}>Done</button>
+          </div>
+        </div>
+      )}
+      {/* CSV Import modal */}
+      {csvModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 600, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '22px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: NAV, marginBottom: 2 }}>Import members from CSV</h2>
+                <p style={{ fontSize: '0.78rem', color: '#64748b' }}>Upload a spreadsheet exported from Excel, Google Sheets, or another system.</p>
+              </div>
+              <button onClick={() => { setCsvModal(false); setCsvResult(null); }} style={{ background: 'none', border: 'none', fontSize: 22, color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+              {csvResult ? (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  {csvResult.ok ? (
+                    <>
+                      <i className="fas fa-circle-check" style={{ fontSize: 40, color: '#16a34a', marginBottom: 12, display: 'block' }} />
+                      <div style={{ fontWeight: 800, color: NAV, fontSize: '1.1rem', marginBottom: 6 }}>{csvResult.imported} member{csvResult.imported !== 1 ? 's' : ''} imported</div>
+                      <p style={{ color: '#64748b', fontSize: '0.875rem' }}>They now appear in your Members list.</p>
+                      <button onClick={() => { setCsvModal(false); setCsvResult(null); }}
+                        style={{ marginTop: 20, background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px 28px', fontWeight: 700, cursor: 'pointer' }}>Done</button>
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-circle-xmark" style={{ fontSize: 40, color: '#dc2626', marginBottom: 12, display: 'block' }} />
+                      <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: 6 }}>Import failed</div>
+                      <p style={{ color: '#64748b', fontSize: '0.875rem' }}>{csvResult.error}</p>
+                      <button onClick={() => setCsvResult(null)} style={{ marginTop: 16, background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 10, padding: '10px 24px', fontWeight: 700, cursor: 'pointer' }}>Try again</button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* File upload */}
+                  <div style={{ marginBottom: 20 }}>
+                    <label style={{ display: 'block', border: '2px dashed #cbd5e1', borderRadius: 12, padding: '24px', textAlign: 'center', cursor: 'pointer', background: '#f8fafc' }}>
+                      <i className="fas fa-cloud-upload-alt" style={{ fontSize: 28, color: '#94a3b8', display: 'block', marginBottom: 8 }} />
+                      <div style={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}>Click to upload a CSV file</div>
+                      <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>First row must be column headers. Supports .csv files.</div>
+                      <input type="file" accept=".csv,text/csv" onChange={handleCsvFile} style={{ display: 'none' }} />
+                    </label>
+                  </div>
+
+                  {csvRows.length > 0 && (
+                    <>
+                      <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: '0.825rem', color: '#0369a1', fontWeight: 600 }}>
+                        <i className="fas fa-table" style={{ marginRight: 6 }} />{csvRows.length} rows detected · {csvHeaders.length} columns
+                      </div>
+
+                      {/* Column mapping */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontWeight: 700, color: NAV, fontSize: '0.85rem', marginBottom: 10 }}>Map your columns</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          {CSV_FIELDS.map(field => (
+                            <div key={field}>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 3 }}>
+                                {CSV_LABELS[field]}{field === 'firstName' || field === 'lastName' ? ' *' : ''}
+                              </label>
+                              <select value={csvMapping[field] || ''} onChange={e => setCsvMapping(m => ({ ...m, [field]: e.target.value || undefined }))}
+                                style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #dde3f0', borderRadius: 8, fontSize: '0.825rem', fontFamily: 'inherit', background: '#fff' }}>
+                                <option value="">— skip —</option>
+                                {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Preview */}
+                      <div>
+                        <div style={{ fontWeight: 700, color: NAV, fontSize: '0.85rem', marginBottom: 8 }}>Preview (first 3 rows)</div>
+                        <div style={{ overflow: 'auto', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                            <thead>
+                              <tr style={{ background: '#f8fafc' }}>
+                                {CSV_FIELDS.filter(f => csvMapping[f]).map(f => (
+                                  <th key={f} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#374151', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>{CSV_LABELS[f]}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {csvRows.slice(0, 3).map((row, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+                                  {CSV_FIELDS.filter(f => csvMapping[f]).map(f => (
+                                    <td key={f} style={{ padding: '7px 10px', color: '#374151' }}>{row[csvMapping[f]] || <span style={{ color: '#cbd5e1' }}>—</span>}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+
+            {!csvResult && csvRows.length > 0 && (
+              <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 10 }}>
+                <button onClick={() => setCsvModal(false)} style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                <button onClick={runCsvImport} disabled={csvImporting || (!csvMapping.firstName && !csvMapping.lastName)}
+                  style={{ flex: 2, background: csvImporting ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: csvImporting ? 'not-allowed' : 'pointer' }}>
+                  {csvImporting ? 'Importing…' : `Import ${csvRows.length} member${csvRows.length !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
