@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
@@ -26,12 +27,12 @@ const PRO_FEATURES = [
 ];
 
 const CUSTOM_FEATURES = [
+  '500+ members',
+  'Multi-site / network',
   'Everything in Pro',
+  'White-label option',
   'Dedicated onboarding',
   'Custom integrations',
-  'White-label options',
-  'SLA & data agreements',
-  'Invoiced billing',
 ];
 
 function Check({ color = '#16a34a' }) {
@@ -43,23 +44,110 @@ function Check({ color = '#16a34a' }) {
   );
 }
 
-export default function Pricing() {
-  const [billing, setBilling] = useState('monthly');
-  const isAnnual = billing === 'annual';
+function ContactModal({ onClose }) {
+  const [form, setForm] = useState({ name: '', churchName: '', email: '', message: '' });
+  const [status, setStatus] = useState('idle'); // idle | sending | done | error
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  async function submit(e) {
+    e.preventDefault();
+    setStatus('sending');
+    setErrorMsg('');
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const j = await res.json();
+      if (!res.ok) { setErrorMsg(j.error || 'Something went wrong.'); setStatus('error'); return; }
+      setStatus('done');
+    } catch {
+      setErrorMsg('Network error. Please try again.');
+      setStatus('error');
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0',
+    fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none',
+    color: '#1e293b', background: '#fff',
+  };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '36px 32px', maxWidth: 480, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8', lineHeight: 1 }}>×</button>
+
+        {status === 'done' ? (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </div>
+            <h3 style={{ color: NAV, fontWeight: 800, fontSize: '1.2rem', marginBottom: 8 }}>Message sent!</h3>
+            <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.6 }}>We'll get back to you within 1–2 business days. Check your inbox for a confirmation.</p>
+            <button onClick={onClose} style={{ marginTop: 24, padding: '11px 28px', borderRadius: 10, background: NAV, color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+          </div>
+        ) : (
+          <>
+            <h2 style={{ color: NAV, fontWeight: 800, fontSize: '1.3rem', marginBottom: 4 }}>Talk to us about Custom</h2>
+            <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 24 }}>Tell us about your church or network and we'll be in touch.</p>
+            <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: NAV, marginBottom: 5 }}>Your name *</label>
+                <input style={inputStyle} value={form.name} onChange={set('name')} required placeholder="John Smith" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: NAV, marginBottom: 5 }}>Church / organisation name</label>
+                <input style={inputStyle} value={form.churchName} onChange={set('churchName')} placeholder="City Life Church" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: NAV, marginBottom: 5 }}>Your email *</label>
+                <input style={inputStyle} type="email" value={form.email} onChange={set('email')} required placeholder="john@citychurch.org" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: NAV, marginBottom: 5 }}>Message *</label>
+                <textarea style={{ ...inputStyle, minHeight: 100, resize: 'vertical' }} value={form.message} onChange={set('message')} required placeholder="Tell us about your church — size, locations, what you need..." />
+              </div>
+              {status === 'error' && <p style={{ color: '#ef4444', fontSize: '0.85rem', margin: 0 }}>{errorMsg}</p>}
+              <button type="submit" disabled={status === 'sending'}
+                style={{ padding: '13px', borderRadius: 10, background: NAV, color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.95rem', cursor: status === 'sending' ? 'not-allowed' : 'pointer', opacity: status === 'sending' ? 0.7 : 1, fontFamily: 'inherit' }}>
+                {status === 'sending' ? 'Sending…' : 'Send message'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function Pricing() {
+  const [billing, setBilling] = useState('monthly');
+  const [showContact, setShowContact] = useState(false);
+  const isAnnual = billing === 'annual';
+  const router = useRouter();
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column' }}>
+      {showContact && <ContactModal onClose={() => setShowContact(false)} />}
+
       {/* Nav */}
-      <div style={{ background: NAV, padding: '16px 32px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L8 8H2l4.5 3.5L4 18l8-5 8 5-2.5-6.5L22 8h-6L12 2z" fill={NAV} />
-          </svg>
+      <div style={{ background: NAV, padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div onClick={() => router.push('/')} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L8 8H2l4.5 3.5L4 18l8-5 8 5-2.5-6.5L22 8h-6L12 2z" fill={NAV} />
+            </svg>
+          </div>
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: '0.95rem' }}>CHURCH<span style={{ color: GOLD }}>COMPASS</span></span>
         </div>
-        <span style={{ color: '#fff', fontWeight: 800, fontSize: '0.95rem' }}>CHURCH<span style={{ color: GOLD }}>COMPASS</span></span>
+        <button onClick={() => router.push('/')} style={{ background: 'transparent', color: 'rgba(255,255,255,0.7)', border: 'none', fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit' }}>← Home</button>
       </div>
 
-      <div style={{ maxWidth: 1060, margin: '0 auto', padding: '64px 24px 80px' }}>
+      <div style={{ flex: 1, maxWidth: 1060, margin: '0 auto', padding: '64px 24px 80px', width: '100%' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: NAV, marginBottom: 12 }}>
@@ -154,13 +242,15 @@ export default function Pricing() {
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontWeight: 800, color: NAV, fontSize: '1.1rem', marginBottom: 4 }}>Custom</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontSize: '2.8rem', fontWeight: 900, color: NAV }}>Custom</span>
+                <span style={{ fontSize: '2.8rem', fontWeight: 900, color: NAV }}>Talk</span>
               </div>
+              <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: 2 }}>to us</div>
               <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: 8 }}>For denominations and multi-site church networks.</p>
             </div>
-            <a href="mailto:hello@churchcompass.app" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 12, background: '#f1f5f9', color: NAV, fontWeight: 700, fontSize: '0.95rem', textDecoration: 'none', marginBottom: 28 }}>
+            <button onClick={() => setShowContact(true)}
+              style={{ display: 'block', width: '100%', textAlign: 'center', padding: '13px', borderRadius: 12, background: '#f1f5f9', color: NAV, fontWeight: 700, fontSize: '0.95rem', textDecoration: 'none', marginBottom: 28, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
               Contact us
-            </a>
+            </button>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {CUSTOM_FEATURES.map(f => (
                 <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: '0.875rem', color: '#374151' }}>
@@ -178,8 +268,8 @@ export default function Pricing() {
             {[
               { q: 'Do I need a credit card to start?', a: 'No. The Free plan is free forever — no card required. For the Pro monthly trial, you add your card after signup but nothing is charged for 14 days.' },
               { q: 'Can I upgrade at any time?', a: 'Yes. Upgrade from your admin settings and your data carries over instantly.' },
-              { q: 'What happens after the 14-day trial?', a: 'Your card is charged £9/month automatically. Cancel any time before the trial ends and you won\'t be charged.' },
-              { q: 'What\'s the difference between monthly and annual?', a: 'Annual billing is £90/year — that\'s 2 months free compared to paying monthly. Payment is taken upfront for the year.' },
+              { q: 'What happens after the 14-day trial?', a: "Your card is charged £9/month automatically. Cancel any time before the trial ends and you won't be charged." },
+              { q: "What's the difference between monthly and annual?", a: "Annual billing is £90/year — that's 2 months free compared to paying monthly. Payment is taken upfront for the year." },
               { q: 'Can I switch between monthly and annual?', a: 'Yes. Contact us and we can switch your billing at the next renewal with no penalty.' },
               { q: 'What happens when I hit 100 members on Free?', a: "You can still use the system — you just won't be able to add more members until you upgrade to Pro." },
             ].map(({ q, a }) => (
@@ -191,6 +281,15 @@ export default function Pricing() {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer style={{ background: '#0f1f35', padding: '20px 32px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
+        ChurchCompass — church management · by Elmoril · elmorilx.com
+        <span style={{ margin: '0 12px' }}>·</span>
+        <button onClick={() => router.push('/privacy')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}>Privacy Policy</button>
+        <span style={{ margin: '0 12px' }}>·</span>
+        <button onClick={() => router.push('/terms')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}>Terms of Service</button>
+      </footer>
     </div>
   );
 }
