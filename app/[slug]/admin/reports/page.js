@@ -86,6 +86,8 @@ export default function Reports() {
 
   if (!ctx) return null;
   if (!data) return <div style={{ padding: 40, color: '#64748b' }}>Loading reports…</div>;
+  if (data.error) return <div style={{ padding: 40, color: '#dc2626' }}>Could not load reports: {data.error}</div>;
+  if (!data.members) return <div style={{ padding: 40, color: '#dc2626' }}>Unexpected response from server. Please refresh.</div>;
 
   const months = lastMonths(range);
   const isPro = ctx.church?.plan === 'pro' || ctx.church?.plan === 'custom';
@@ -110,7 +112,8 @@ export default function Reports() {
   data.firstTimers.forEach(f => { const s = f.follow_up_status || 'pending'; ftByStatus[s] = (ftByStatus[s] || 0) + 1; });
 
   // Average attendance per event
-  const avgAttendance = data.events.length ? Math.round(Object.values(eventCountMap).reduce((a, b) => a + b, 0) / data.events.filter(e => eventCountMap[e.id]).length || 0) : 0;
+  const eventsWithAttendance = data.events.filter(e => eventCountMap[e.id]).length;
+  const avgAttendance = eventsWithAttendance ? Math.round(Object.values(eventCountMap).reduce((a, b) => a + b, 0) / eventsWithAttendance) : 0;
 
   const tabBtn = (id, label, icon) => (
     <button onClick={() => setTab(id)}
