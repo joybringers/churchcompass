@@ -108,6 +108,27 @@ async function checkEvent(eventId, churchId) {
   return data ? { ok: true, id: data.id } : { ok: false, id: null };
 }
 
+function splitName(full) {
+  const parts = (full || '').trim().split(/\s+/);
+  if (parts.length < 2) return { firstName: parts[0] || '', lastName: '' };
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
+}
+
+async function autoUpsertMember(churchId, firstName, lastName, opts = {}) {
+  const fn = (firstName || '').trim();
+  const ln = (lastName || '').trim();
+  if (!fn) return null;
+  let query = supabase.from('cc_members').select('id').eq('church_id', churchId).eq('is_active', true).ilike('first_name', fn);
+  if (ln) query = query.ilike('last_name', ln);
+  const { data: existing } = await query.maybeSingle();
+  if (existing) return existing.id;
+  const { data, error } = await supabase.from('cc_members').insert({
+    church_id: churchId, first_name: fn, last_name: ln || null,
+    member_type: opts.memberType || 'adult', parent_id: opts.parentId || null,
+  }).select('id').single();
+  return error ? null : data.id;
+}
+
 async function checkin(body) {
   const { churchId, memberId, visitorName, visitorType, eventId, guardianName, guardianPhone, allergies } = body;
   const requested = visitorType || 'adult';
@@ -158,6 +179,13 @@ async function checkin(body) {
     visitor_name: storedName, visitor_type: type, notes,
   });
   if (error) return fail('Could not save the check-in.', 500);
+
+  // Auto-add new visitors to members (no-op if they're already a known member or already in members table)
+  if (!member && name) {
+    const { firstName, lastName } = splitName(name);
+    await autoUpsertMember(churchId, firstName, lastName, { memberType: type === 'child' ? 'child' : 'adult' });
+  }
+
   return NextResponse.json({ ok: true, pickupCode });
 }
 
@@ -186,6 +214,15 @@ async function familyCheckin(body) {
   ];
   const { error } = await supabase.from('cc_attendance').insert(rows);
   if (error) return fail('Could not complete check-in.', 500);
+
+  // Auto-add guardian and children to members
+  const { firstName: gFn, lastName: gLn } = splitName(guardian);
+  const guardianMemberId = await autoUpsertMember(churchId, gFn, gLn, { memberType: 'adult' });
+  for (const k of kids) {
+    const { firstName: kFn, lastName: kLn } = splitName(k.name);
+    await autoUpsertMember(churchId, kFn, kLn, { memberType: 'child', parentId: guardianMemberId });
+  }
+
   return NextResponse.json({ ok: true, pickupCode: code, count: kids.length });
 }
 
