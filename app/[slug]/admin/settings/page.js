@@ -33,6 +33,20 @@ export default function Settings() {
 
   // Profile
   const [profile, setProfile] = useState({ name: '', denomination: '', address: '', phone: '', website: '' });
+
+  // Branding
+  const [brandColor, setBrandColor] = useState('#1e3a5f');
+  const [brandSaving, setBrandSaving] = useState(false);
+  const PRESET_COLORS = ['#1e3a5f','#1d4ed8','#7c3aed','#be185d','#b45309','#15803d','#0f766e','#b91c1c','#374151','#0c4a6e'];
+
+  // Custom Fields
+  const [customFields, setCustomFields] = useState([]);
+  const [cfFormType, setCfFormType] = useState('members');
+  const [cfModal, setCfModal] = useState(false);
+  const [cfEdit, setCfEdit] = useState(null);
+  const [cfForm, setCfForm] = useState({ label: '', fieldType: 'text', formType: 'members', options: '', required: false });
+  const [cfSaving, setCfSaving] = useState(false);
+  const [cfError, setCfError] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
 
   // Team
@@ -57,7 +71,9 @@ export default function Settings() {
   useEffect(() => {
     if (!ctx) return;
     setProfile({ name: church.name || '', denomination: church.denomination || '', address: church.address || '', phone: church.phone || '', website: church.website || '' });
+    if (church.primary_color) setBrandColor(church.primary_color);
     loadAdmins();
+    loadCustomFields();
     // Check for Stripe success redirect
     const url = new URL(window.location.href);
     if (url.searchParams.get('upgraded') === '1') {
@@ -71,6 +87,49 @@ export default function Settings() {
     const res = await fetch(`/api/admin-users?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
     const data = await res.json();
     if (data.admins) setAdmins(data.admins);
+  };
+
+  const loadCustomFields = async () => {
+    if (!ctx) return;
+    const res = await fetch(`/api/custom-fields?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.fields) setCustomFields(data.fields);
+  };
+
+  const saveBranding = async () => {
+    setBrandSaving(true);
+    const res = await fetch('/api/churches', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ id: church.id, ...profile, primaryColor: brandColor }) });
+    setBrandSaving(false);
+    if (res.ok) { setSaved('branding'); setTimeout(() => setSaved(''), 3000); }
+  };
+
+  const openCfModal = (field = null) => {
+    setCfEdit(field);
+    setCfForm(field ? { label: field.label, fieldType: field.field_type, formType: field.form_type, options: Array.isArray(field.options) ? field.options.join(', ') : '', required: field.required } : { label: '', fieldType: 'text', formType: cfFormType, options: '', required: false });
+    setCfError('');
+    setCfModal(true);
+  };
+
+  const saveCustomField = async (e) => {
+    e.preventDefault();
+    setCfError(''); setCfSaving(true);
+    const opts = cfForm.fieldType === 'dropdown' ? cfForm.options.split(',').map(s => s.trim()).filter(Boolean) : null;
+    const body = { label: cfForm.label, fieldType: cfForm.fieldType, formType: cfForm.formType, options: opts, required: cfForm.required };
+    const url = '/api/custom-fields';
+    const method = cfEdit ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(cfEdit ? { id: cfEdit.id, ...body } : body) });
+    const data = await res.json();
+    setCfSaving(false);
+    if (!res.ok) { setCfError(data.error || 'Failed to save.'); return; }
+    setCfModal(false);
+    loadCustomFields();
+    setSaved('cf'); setTimeout(() => setSaved(''), 3000);
+  };
+
+  const deleteCustomField = async (id) => {
+    if (!confirm('Delete this custom field? Any data already collected will remain on member records.')) return;
+    await fetch(`/api/custom-fields?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+    loadCustomFields();
   };
 
   const saveProfile = async (e) => {
@@ -157,7 +216,7 @@ export default function Settings() {
         <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
           <i className="fas fa-circle-check" style={{ color: '#16a34a', fontSize: 15 }} />
           <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#166534' }}>
-            {saved === 'profile' ? 'Church profile saved.' : saved === 'admin_added' ? 'Admin added — they\'ve been sent their login details by email.' : saved === 'password' ? 'Password changed successfully.' : saved === 'plan_upgraded' ? 'Your plan has been upgraded to Pro!' : 'Saved.'}
+            {saved === 'profile' ? 'Church profile saved.' : saved === 'admin_added' ? 'Admin added — they\'ve been sent their login details by email.' : saved === 'password' ? 'Password changed successfully.' : saved === 'plan_upgraded' ? 'Your plan has been upgraded to Pro!' : saved === 'branding' ? 'Branding saved.' : saved === 'cf' ? 'Custom field saved.' : 'Saved.'}
           </span>
         </div>
       )}
@@ -166,6 +225,8 @@ export default function Settings() {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 28 }}>
         {tabBtn('profile', 'Church Profile', 'fa-church')}
         {tabBtn('team', 'Team', 'fa-users')}
+        {tabBtn('branding', 'Branding', 'fa-palette')}
+        {tabBtn('fields', 'Custom Fields', 'fa-sliders')}
         {tabBtn('billing', 'Plan & Billing', 'fa-credit-card')}
         {tabBtn('security', 'Security', 'fa-lock')}
       </div>
@@ -329,6 +390,119 @@ export default function Settings() {
         </div>
       )}
 
+      {/* ── BRANDING ── */}
+      {tab === 'branding' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+            <div style={{ fontWeight: 800, color: NAV, marginBottom: 4 }}>Primary colour</div>
+            <p style={{ color: '#64748b', fontSize: '0.82rem', marginBottom: 20 }}>Used for your navigation bar, buttons, and accents throughout the admin panel.</p>
+
+            {/* Presets */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: 10 }}>Quick presets</div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {PRESET_COLORS.map(c => (
+                  <button key={c} onClick={() => setBrandColor(c)}
+                    style={{ width: 36, height: 36, borderRadius: 10, background: c, border: brandColor === c ? `3px solid ${NAV}` : '3px solid transparent', outline: brandColor === c ? '2px solid #fff' : 'none', outlineOffset: -4, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.15)', transition: 'transform 0.1s', transform: brandColor === c ? 'scale(1.15)' : 'scale(1)' }} />
+                ))}
+              </div>
+            </div>
+
+            {/* Custom picker */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: 8 }}>Custom colour</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <input type="color" value={brandColor} onChange={e => setBrandColor(e.target.value)}
+                  style={{ width: 48, height: 48, border: '2px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', padding: 2 }} />
+                <input type="text" value={brandColor} onChange={e => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) setBrandColor(e.target.value); }}
+                  style={{ padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.9rem', fontFamily: 'monospace', width: 110 }} />
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: 10 }}>Preview</div>
+              <div style={{ background: brandColor, borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, maxWidth: 420 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-church" style={{ color: '#fff', fontSize: 14 }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#fff', fontWeight: 800, fontSize: '0.95rem' }}>{profile.name || 'Your Church'}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.75rem' }}>Admin panel</div>
+                </div>
+                <div style={{ background: GOLD, color: brandColor, borderRadius: 8, padding: '6px 14px', fontWeight: 800, fontSize: '0.8rem' }}>Button</div>
+              </div>
+            </div>
+
+            <button onClick={saveBranding} disabled={brandSaving}
+              style={{ background: brandSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '12px 24px', fontWeight: 700, cursor: brandSaving ? 'not-allowed' : 'pointer' }}>
+              {brandSaving ? 'Saving…' : 'Save branding'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── CUSTOM FIELDS ── */}
+      {tab === 'fields' && (
+        <div>
+          <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <p style={{ color: '#64748b', fontSize: '0.82rem' }}>Add extra fields to your member, first timer, or children registration forms.</p>
+            </div>
+            <button onClick={() => openCfModal()}
+              style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer' }}>
+              <i className="fas fa-plus" style={{ marginRight: 6 }} />Add field
+            </button>
+          </div>
+
+          {/* Form type filter */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+            {[['members','Members','fa-users'],['first_timers','First Timers','fa-user-plus'],['children','Children','fa-child']].map(([val, label, icon]) => (
+              <button key={val} onClick={() => setCfFormType(val)}
+                style={{ padding: '7px 16px', border: `1.5px solid ${cfFormType === val ? NAV : '#e2e8f0'}`, borderRadius: 20, fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', background: cfFormType === val ? NAV : '#fff', color: cfFormType === val ? '#fff' : '#475569' }}>
+                <i className={`fas ${icon}`} style={{ marginRight: 6 }} />{label}
+              </button>
+            ))}
+          </div>
+
+          {/* Fields list */}
+          {(() => {
+            const filtered = customFields.filter(f => f.form_type === cfFormType);
+            if (!filtered.length) return (
+              <div style={{ background: '#f8fafc', borderRadius: 14, padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
+                <i className="fas fa-sliders" style={{ fontSize: 28, marginBottom: 10, display: 'block' }} />
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>No custom fields yet</div>
+                <div style={{ fontSize: '0.82rem' }}>Click "Add field" to create your first custom field for this form.</div>
+              </div>
+            );
+            return (
+              <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                {filtered.map((f, i) => (
+                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: i < filtered.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 9, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <i className={`fas ${f.field_type === 'checkbox' ? 'fa-square-check' : f.field_type === 'dropdown' ? 'fa-list' : f.field_type === 'date' ? 'fa-calendar' : f.field_type === 'number' ? 'fa-hashtag' : f.field_type === 'textarea' ? 'fa-align-left' : 'fa-font'}`} style={{ color: '#64748b', fontSize: 13 }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{f.label}</span>
+                        {f.required && <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '0.65rem', fontWeight: 800, padding: '2px 7px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Required</span>}
+                      </div>
+                      <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginTop: 1, textTransform: 'capitalize' }}>
+                        {f.field_type}{f.field_type === 'dropdown' && f.options?.length ? ` · ${f.options.join(', ')}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button onClick={() => openCfModal(f)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: '0.78rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => deleteCustomField(f.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* ── SECURITY ── */}
       {tab === 'security' && (
         <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
@@ -352,6 +526,66 @@ export default function Settings() {
               {pwSaving ? 'Saving…' : 'Change password'}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Custom Field Modal */}
+      {cfModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 460, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '1rem' }}>{cfEdit ? 'Edit field' : 'Add custom field'}</div>
+              <button onClick={() => setCfModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <form onSubmit={saveCustomField} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Field label</label>
+                <input style={{ padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                  value={cfForm.label} onChange={e => setCfForm(f => ({ ...f, label: e.target.value }))} required placeholder="e.g. Emergency contact name" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Field type</label>
+                  <select style={{ padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.9rem', width: '100%', fontFamily: 'inherit' }}
+                    value={cfForm.fieldType} onChange={e => setCfForm(f => ({ ...f, fieldType: e.target.value }))}>
+                    <option value="text">Short text</option>
+                    <option value="textarea">Long text</option>
+                    <option value="number">Number</option>
+                    <option value="date">Date</option>
+                    <option value="checkbox">Yes / No</option>
+                    <option value="dropdown">Dropdown</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Applies to</label>
+                  <select style={{ padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.9rem', width: '100%', fontFamily: 'inherit' }}
+                    value={cfForm.formType} onChange={e => setCfForm(f => ({ ...f, formType: e.target.value }))}>
+                    <option value="members">Members</option>
+                    <option value="first_timers">First Timers</option>
+                    <option value="children">Children</option>
+                  </select>
+                </div>
+              </div>
+              {cfForm.fieldType === 'dropdown' && (
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Options (comma-separated)</label>
+                  <input style={{ padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                    value={cfForm.options} onChange={e => setCfForm(f => ({ ...f, options: e.target.value }))} placeholder="Option 1, Option 2, Option 3" />
+                </div>
+              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={cfForm.required} onChange={e => setCfForm(f => ({ ...f, required: e.target.checked }))} style={{ width: 16, height: 16, accentColor: NAV }} />
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Required field</span>
+              </label>
+              {cfError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', color: '#dc2626', fontSize: '0.85rem' }}>{cfError}</div>}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
+                <button type="button" onClick={() => setCfModal(false)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button type="submit" disabled={cfSaving} style={{ background: cfSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: cfSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  {cfSaving ? 'Saving…' : cfEdit ? 'Save changes' : 'Add field'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
