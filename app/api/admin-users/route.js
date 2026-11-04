@@ -51,13 +51,13 @@ export async function POST(req) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Email the new admin their credentials (best-effort)
-  const { data: church } = await supabase.from('cc_churches').select('name, slug').eq('id', churchId).single();
+  const { data: churchDetails } = await supabase.from('cc_churches').select('name, slug').eq('id', churchId).single();
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://churchcompass.elmorilx.com';
   try {
     await sendEmail({
       to: email,
-      subject: `You've been added as an admin — ${church?.name || 'ChurchCompass'}`,
-      body: `Hi ${name},\n\nYou've been added as an admin for ${church?.name || 'your church'} on ChurchCompass.\n\nYour login details:\n  Email: ${email}\n  Password: ${password}\n\nSign in here:\n  ${baseUrl}/${church?.slug}/admin\n\nYou can change your password after signing in.\n\nThe ChurchCompass Team`,
+      subject: `You've been added as an admin — ${churchDetails?.name || 'ChurchCompass'}`,
+      body: `Hi ${name},\n\nYou've been added as an admin for ${churchDetails?.name || 'your church'} on ChurchCompass.\n\nYour login details:\n  Email: ${email}\n  Password: ${password}\n\nSign in here:\n  ${baseUrl}/${churchDetails?.slug}/admin\n\nYou can change your password after signing in.\n\nThe ChurchCompass Team`,
     });
   } catch { /* ignore */ }
 
