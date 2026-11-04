@@ -117,7 +117,7 @@ export async function GET(req) {
     { stage: 'Created event', count: churchStats.filter(c => c.hasEvents).length, description: 'At least 1 event' },
     { stage: 'Tracked attendance', count: churchStats.filter(c => c.hasAttendance).length, description: 'At least 1 sign-in' },
     { stage: 'Got first timer', count: churchStats.filter(c => c.hasFirstTimers).length, description: 'First timer recorded' },
-    { stage: 'Active (14d)', count: churchStats.filter(c => c.isActive && att => att).length, description: 'Sign-in in last 14 days' },
+    { stage: 'Active (14d)', count: churchStats.filter(c => c.isActive).length, description: 'Sign-in in last 14 days' },
   ];
   // Fix last funnel stage
   funnel[5].count = churchStats.filter(c => attendance.some(a => a.church_id === c.id && a.sign_in_time >= ago(14))).length;
