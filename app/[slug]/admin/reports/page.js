@@ -5,335 +5,316 @@ import { useCC } from '../layout';
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 
-function getWeekStart(date) {
-  const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay());
-  d.setHours(0, 0, 0, 0);
-  return d;
+function fmt(d) { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
+function fmtM(d) { return new Date(d).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }); }
+
+// Group items by month (YYYY-MM)
+function byMonth(items, dateKey) {
+  const map = {};
+  items.forEach(i => {
+    const raw = i[dateKey] || (i.cc_events && i.cc_events.event_date);
+    if (!raw) return;
+    const m = raw.slice(0, 7);
+    map[m] = (map[m] || 0) + 1;
+  });
+  return map;
 }
 
-function formatWeekLabel(date) {
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+// Last N months as YYYY-MM strings
+function lastMonths(n) {
+  const months = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return months;
 }
 
-function daysSince(date) {
-  return Math.floor((new Date() - new Date(date)) / 86400000);
-}
-
-const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-
-function ProSection({ slug, children, title, icon }) {
+function BarChart({ data, color = NAV, height = 120 }) {
+  const max = Math.max(...data.map(d => d.value), 1);
   return (
-    <div style={{ background: '#fff', borderRadius: 14, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 24, overflow: 'hidden' }}>
-      <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: NAV, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-          <i className={`fas ${icon}`} style={{ color: GOLD }} />{title}
-          <span style={{ background: NAV, color: '#fff', fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 10, letterSpacing: '0.04em' }}>PRO</span>
-        </h2>
-        {!children && (
-          <a href={`/${slug}/admin/settings`} style={{ background: GOLD, color: NAV, borderRadius: 8, padding: '6px 14px', fontWeight: 700, fontSize: '0.78rem', textDecoration: 'none' }}>Upgrade →</a>
-        )}
-      </div>
-      {children ? children : (
-        <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>
-          Upgrade to Pro to unlock this report.
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height, paddingTop: 8 }}>
+      {data.map((d, i) => (
+        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
+          <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, minWidth: 0, lineHeight: 1 }}>{d.value || ''}</div>
+          <div title={`${d.label}: ${d.value}`}
+            style={{ width: '100%', background: d.value ? color : '#f1f5f9', borderRadius: '4px 4px 0 0', height: `${Math.max((d.value / max) * 90, d.value ? 4 : 2)}%`, transition: 'height 0.3s', minHeight: 2 }} />
+          <div style={{ fontSize: '0.6rem', color: '#94a3b8', textAlign: 'center', lineHeight: 1.2, overflow: 'hidden', maxWidth: '100%', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{d.label}</div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
+function StatCard({ label, value, icon, sub, color }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 14, padding: '20px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)', borderLeft: `3px solid ${color || GOLD}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: NAV, lineHeight: 1 }}>{value}</div>
+          <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: 4 }}>{label}</div>
+          {sub && <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 2 }}>{sub}</div>}
+        </div>
+        <i className={`fas ${icon}`} style={{ color: color || GOLD, fontSize: 22, opacity: 0.7 }} />
+      </div>
+    </div>
+  );
+}
+
+function downloadCSV(rows, filename) {
+  const header = Object.keys(rows[0]);
+  const csv = [header.join(','), ...rows.map(r => header.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = filename;
+  a.click();
+}
+
 export default function Reports() {
   const ctx = useCC();
-  const [records, setRecords] = useState([]);
-  const [members, setMembers] = useState([]);
-  const [firstTimers, setFirstTimers] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [rsvps, setRsvps] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [absentFilter, setAbsentFilter] = useState(28); // days threshold
-
-  const plan = ctx?.church?.plan || 'free';
-  const isPro = plan === 'pro' || plan === 'custom';
+  const [data, setData] = useState(null);
+  const [tab, setTab] = useState('overview');
+  const [range, setRange] = useState(6); // months
 
   useEffect(() => {
     if (!ctx) return;
     const { church, token } = ctx;
-    const h = { 'Authorization': `Bearer ${token}` };
-    const to = new Date().toISOString().split('T')[0];
-    const fromDate = new Date(); fromDate.setDate(fromDate.getDate() - 90);
-    const from = fromDate.toISOString().split('T')[0];
-    Promise.all([
-      fetch(`/api/attendance?churchId=${church.id}&from=${from}&to=${to}`, { headers: h }).then(r => r.json()),
-      fetch(`/api/first-timers?churchId=${church.id}`, { headers: h }).then(r => r.json()),
-      fetch(`/api/events?churchId=${church.id}`, { headers: h }).then(r => r.json()),
-      fetch(`/api/event-registrations?churchId=${church.id}`, { headers: h }).then(r => r.json()),
-      fetch(`/api/members?churchId=${church.id}`, { headers: h }).then(r => r.json()),
-    ]).then(([att, ft, ev, regData, memData]) => {
-      setRecords(att.records || []);
-      setFirstTimers(ft.firstTimers || []);
-      setEvents(ev.events || []);
-      setRsvps(regData.registrations || []);
-      setMembers(memData.members || []);
-      setLoading(false);
-    });
+    fetch(`/api/reports?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json()).then(setData);
   }, [ctx]);
 
-  if (!ctx || loading) return (
-    <div style={{ padding: '32px 28px', color: '#64748b' }}>Loading reports…</div>
+  if (!ctx) return null;
+  if (!data) return <div style={{ padding: 40, color: '#64748b' }}>Loading reports…</div>;
+
+  const months = lastMonths(range);
+  const isPro = ctx.church?.plan === 'pro' || ctx.church?.plan === 'custom';
+
+  // Derived
+  const totalMembers = data.members.length;
+  const adults = data.members.filter(m => m.member_type !== 'child').length;
+  const children = data.members.filter(m => m.member_type === 'child').length;
+  const newThisMonth = data.members.filter(m => m.created_at?.slice(0, 7) === months[months.length - 1]).length;
+
+  const membersByMonth = byMonth(data.members, 'created_at');
+  const attendanceByMonth = byMonth(data.attendance, 'created_at');
+  const firstTimersByMonth = byMonth(data.firstTimers, 'created_at');
+
+  // Event attendance breakdown (last 10 events with attendance count)
+  const eventCountMap = {};
+  data.attendance.forEach(a => { if (a.event_id) eventCountMap[a.event_id] = (eventCountMap[a.event_id] || 0) + 1; });
+  const topEvents = data.events.slice(0, 10).map(e => ({ ...e, count: eventCountMap[e.id] || 0 }));
+
+  // First timers follow-up breakdown
+  const ftByStatus = {};
+  data.firstTimers.forEach(f => { const s = f.follow_up_status || 'pending'; ftByStatus[s] = (ftByStatus[s] || 0) + 1; });
+
+  // Average attendance per event
+  const avgAttendance = data.events.length ? Math.round(Object.values(eventCountMap).reduce((a, b) => a + b, 0) / data.events.filter(e => eventCountMap[e.id]).length || 0) : 0;
+
+  const tabBtn = (id, label, icon) => (
+    <button onClick={() => setTab(id)}
+      style={{ padding: '8px 16px', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: '0.825rem', cursor: 'pointer', background: tab === id ? NAV : '#f1f5f9', color: tab === id ? '#fff' : '#475569' }}>
+      <i className={`fas ${icon}`} style={{ marginRight: 5 }} />{label}
+    </button>
   );
 
-  const { slug } = ctx;
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-  // Weekly buckets — last 12 weeks
-  const weeks = [];
-  for (let i = 11; i >= 0; i--) {
-    const weekStart = getWeekStart(new Date(now - i * 7 * 86400000));
-    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
-    const count = records.filter(r => { const t = new Date(r.sign_in_time); return t >= weekStart && t < weekEnd; }).length;
-    weeks.push({ label: formatWeekLabel(weekStart), count });
-  }
-  const maxCount = Math.max(...weeks.map(w => w.count), 1);
-
-  // Base stats
-  const thisMonth = records.filter(r => r.sign_in_time >= monthStart);
-  const avgPerWeek = weeks.length ? Math.round(weeks.reduce((s, w) => s + w.count, 0) / weeks.length) : 0;
-  const dayCount = [0,0,0,0,0,0,0];
-  records.forEach(r => { dayCount[new Date(r.sign_in_time).getDay()]++; });
-  const busiestDay = DAYS[dayCount.indexOf(Math.max(...dayCount))];
-  const ftThisMonth = firstTimers.filter(ft => ft.created_at >= monthStart).length;
-
-  // Event map for reports
-  const eventMap = {};
-  records.forEach(r => {
-    if (!r.event_id) return;
-    const name = r.cc_events?.name || 'Unnamed event';
-    eventMap[r.event_id] = { name, count: (eventMap[r.event_id]?.count || 0) + 1 };
-  });
-
-  // ── PRO: Absentee list ──
-  const thresholdDate = new Date(now - absentFilter * 86400000);
-  const memberLastSeen = {};
-  records.forEach(r => {
-    if (!r.member_id) return;
-    const t = new Date(r.sign_in_time);
-    if (!memberLastSeen[r.member_id] || t > memberLastSeen[r.member_id]) memberLastSeen[r.member_id] = t;
-  });
-  const absentees = members
-    .filter(m => memberLastSeen[m.id] && memberLastSeen[m.id] < thresholdDate)
-    .map(m => ({ ...m, lastSeen: memberLastSeen[m.id] }))
-    .sort((a, b) => a.lastSeen - b.lastSeen);
-  const neverAttended = members.filter(m => !memberLastSeen[m.id]).length;
-
-  // ── PRO: Attendance streaks ──
-  const memberMap = Object.fromEntries(members.map(m => [m.id, m]));
-  const byMember = {};
-  records.forEach(r => {
-    if (!r.member_id) return;
-    const wk = getWeekStart(new Date(r.sign_in_time)).getTime();
-    if (!byMember[r.member_id]) byMember[r.member_id] = new Set();
-    byMember[r.member_id].add(wk);
-  });
-  const thisWk = getWeekStart(now).getTime();
-  const lastWk = thisWk - 7 * 86400000;
-  const streaks = Object.entries(byMember).map(([id, wkSet]) => {
-    const sorted = Array.from(wkSet).sort((a, b) => b - a);
-    if (sorted[0] !== thisWk && sorted[0] !== lastWk) return null;
-    let streak = 0, expected = sorted[0];
-    for (const wk of sorted) {
-      if (wk === expected) { streak++; expected -= 7 * 86400000; }
-      else break;
-    }
-    return memberMap[id] ? { member: memberMap[id], streak } : null;
-  }).filter(Boolean).sort((a, b) => b.streak - a.streak).slice(0, 10);
-
-  const csvExport = () => {
-    const rows = [['Name','Type','Event','Sign In','Sign Out']];
-    records.forEach(r => {
-      const name = r.cc_members ? `${r.cc_members.first_name} ${r.cc_members.last_name}` : r.visitor_name || '';
-      rows.push([name, r.visitor_type, r.cc_events?.name || '', r.sign_in_time ? new Date(r.sign_in_time).toLocaleString('en-GB') : '', r.sign_out_time ? new Date(r.sign_out_time).toLocaleString('en-GB') : '']);
-    });
-    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'\\"')}"`).join(',')).join('\n');
-    const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); a.download = 'attendance-report.csv'; a.click();
-  };
-
-  const chartH = 160;
+  const chartData = (map) => months.map(m => ({ label: fmtM(m + '-01'), value: map[m] || 0 }));
 
   return (
-    <div style={{ padding: '32px 28px', maxWidth: 960 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV }}>Reports</h1>
-        <button onClick={csvExport} style={{ background: '#f1f5f9', color: NAV, border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '9px 16px', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>
-          <i className="fas fa-download" style={{ marginRight: 6 }} />Export CSV (90 days)
-        </button>
+    <div style={{ padding: '32px 28px', maxWidth: 1000 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV, marginBottom: 2 }}>
+            <i className="fas fa-chart-bar" style={{ marginRight: 8, color: GOLD }} />Reports
+          </h1>
+          <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Attendance, growth and engagement insights.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select value={range} onChange={e => setRange(Number(e.target.value))}
+            style={{ padding: '8px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.85rem', fontFamily: 'inherit', color: NAV, fontWeight: 600, background: '#fff', cursor: 'pointer' }}>
+            <option value={3}>Last 3 months</option>
+            <option value={6}>Last 6 months</option>
+            <option value={12}>Last 12 months</option>
+          </select>
+        </div>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14, marginBottom: 28 }}>
-        {[
-          { label: 'This month', value: thisMonth.length, color: NAV, icon: 'fa-users' },
-          { label: 'Avg per week', value: avgPerWeek, color: '#22c55e', icon: 'fa-chart-line' },
-          { label: 'Busiest day', value: busiestDay, color: GOLD, icon: 'fa-calendar-day' },
-          { label: 'New this month', value: ftThisMonth, color: '#8b5cf6', icon: 'fa-user-plus' },
-          { label: 'Absent 4+ wks', value: absentees.length, color: '#ef4444', icon: 'fa-person-walking-arrow-right', pro: true },
-        ].map(s => (
-          <div key={s.label} style={{ background: '#fff', borderRadius: 14, padding: '18px 16px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 12, opacity: s.pro && !isPro ? 0.5 : 1 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: s.color + '1a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <i className={`fas ${s.icon}`} style={{ color: s.color, fontSize: 16 }} />
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+        {tabBtn('overview', 'Overview', 'fa-gauge-high')}
+        {tabBtn('attendance', 'Attendance', 'fa-clipboard-list')}
+        {tabBtn('members', 'Members', 'fa-users')}
+        {tabBtn('firsttimers', 'First Timers', 'fa-user-plus')}
+      </div>
+
+      {/* Overview */}
+      {tab === 'overview' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+            <StatCard label="Total members" value={totalMembers} icon="fa-users" color={NAV} sub={`${adults} adults · ${children} children`} />
+            <StatCard label="New this month" value={newThisMonth} icon="fa-user-plus" color="#16a34a" />
+            <StatCard label="Events held" value={data.events.length} icon="fa-calendar-days" color="#7c3aed" />
+            <StatCard label="Avg attendance" value={avgAttendance || '—'} icon="fa-clipboard-list" color={GOLD} sub="per event" />
+            <StatCard label="First timers" value={data.firstTimers.length} icon="fa-door-open" color="#0891b2" />
+          </div>
+          {/* Attendance trend */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: '22px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem', marginBottom: 16 }}>Attendance trend</div>
+            <BarChart data={chartData(attendanceByMonth)} color={NAV} height={140} />
+          </div>
+          {/* Side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+            <div style={{ background: '#fff', borderRadius: 14, padding: '22px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem', marginBottom: 16 }}>New members</div>
+              <BarChart data={chartData(membersByMonth)} color="#16a34a" height={120} />
             </div>
-            <div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{s.pro && !isPro ? '—' : s.value}</div>
-              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 3 }}>{s.label}</div>
+            <div style={{ background: '#fff', borderRadius: 14, padding: '22px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem', marginBottom: 16 }}>First timers</div>
+              <BarChart data={chartData(firstTimersByMonth)} color="#0891b2" height={120} />
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* Bar chart */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: '24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 24, overflowX: 'auto' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: NAV, marginBottom: 20 }}>Weekly attendance — last 12 weeks</h2>
-        <svg width="100%" viewBox={`0 0 ${weeks.length * 70} ${chartH + 36}`} style={{ overflow: 'visible', minWidth: 400 }}>
-          {weeks.map((w, i) => {
-            const barH = maxCount > 0 ? Math.max(4, (w.count / maxCount) * chartH) : 4;
-            const x = i * 70 + 10;
-            const y = chartH - barH;
-            return (
-              <g key={i}>
-                <rect x={x} y={y} width={50} height={barH} rx={5} fill={NAV} opacity={0.85} />
-                {w.count > 0 && <text x={x + 25} y={y - 5} textAnchor="middle" fontSize={11} fill="#374151" fontWeight="600">{w.count}</text>}
-                <text x={x + 25} y={chartH + 18} textAnchor="middle" fontSize={10} fill="#94a3b8">{w.label}</text>
-              </g>
-            );
-          })}
-          <line x1={0} y1={chartH} x2={weeks.length * 70} y2={chartH} stroke="#e2e8f0" strokeWidth={1} />
-        </svg>
-      </div>
-
-      {/* ── PRO: Attendance Streaks ── */}
-      <ProSection slug={slug} title="Attendance Streaks" icon="fa-fire" children={isPro ? (
-        <div style={{ padding: '0 0 4px' }}>
-          {streaks.length === 0 ? (
-            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>No streaks yet — check back once members have a few consecutive weeks of attendance.</div>
-          ) : (
+      {/* Attendance tab */}
+      {tab === 'attendance' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '22px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem' }}>Monthly attendance</div>
+              {isPro && (
+                <button onClick={() => downloadCSV(months.map(m => ({ month: m, attendance: attendanceByMonth[m] || 0 })), 'attendance-by-month.csv')}
+                  style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 8, padding: '6px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}>
+                  <i className="fas fa-download" style={{ marginRight: 5 }} />CSV
+                </button>
+              )}
+            </div>
+            <BarChart data={chartData(attendanceByMonth)} color={NAV} height={160} />
+          </div>
+          {/* Per-event table */}
+          <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem' }}>Attendance by event (last 10)</div>
+              {isPro && (
+                <button onClick={() => downloadCSV(topEvents.map(e => ({ event: e.name, date: e.event_date, type: e.type, attendance: e.count })), 'attendance-by-event.csv')}
+                  style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 8, padding: '6px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}>
+                  <i className="fas fa-download" style={{ marginRight: 5 }} />CSV
+                </button>
+              )}
+            </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
-                  {['#', 'Member', 'Type', 'Streak'].map(h => (
-                    <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Streak' ? 'center' : 'left', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                  {['Event', 'Date', 'Type', 'Attendance'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 700, color: '#374151', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {streaks.map(({ member: m, streak }, idx) => (
-                  <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '12px 16px', color: idx < 3 ? GOLD : '#94a3b8', fontWeight: 800, fontSize: idx === 0 ? '1.1rem' : '0.875rem' }}>
-                      {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontWeight: 700, color: '#1e293b' }}>{m.first_name} {m.last_name}</td>
-                    <td style={{ padding: '12px 16px', color: '#64748b', textTransform: 'capitalize' }}>{m.member_type}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      <span style={{ background: streak >= 8 ? '#fef9c3' : streak >= 4 ? '#f0fdf4' : '#f8fafc', color: streak >= 8 ? '#a16207' : streak >= 4 ? '#15803d' : '#64748b', borderRadius: 8, padding: '4px 12px', fontWeight: 800, fontSize: '0.9rem' }}>
-                        {streak} {streak === 1 ? 'week' : 'weeks'}
-                      </span>
+                {topEvents.length === 0 ? (
+                  <tr><td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No events yet.</td></tr>
+                ) : topEvents.map(e => (
+                  <tr key={e.id} style={{ borderTop: '1px solid #f8fafc' }}>
+                    <td style={{ padding: '11px 16px', fontWeight: 600, color: NAV }}>{e.name}</td>
+                    <td style={{ padding: '11px 16px', color: '#64748b' }}>{e.event_date ? fmt(e.event_date) : '—'}</td>
+                    <td style={{ padding: '11px 16px', color: '#64748b', textTransform: 'capitalize' }}>{e.type || '—'}</td>
+                    <td style={{ padding: '11px 16px' }}>
+                      <span style={{ fontWeight: 700, color: e.count ? NAV : '#94a3b8', fontSize: '0.9rem' }}>{e.count || 0}</span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-      ) : null} />
-
-      {/* ── PRO: Absentee List ── */}
-      <ProSection slug={slug} title="Absentee List" icon="fa-user-clock" children={isPro ? (
-        <div>
-          <div style={{ padding: '14px 24px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.82rem', color: '#64748b' }}>Show members absent for more than</span>
-            {[14, 28, 42, 56].map(d => (
-              <button key={d} onClick={() => setAbsentFilter(d)}
-                style={{ padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, background: absentFilter === d ? NAV : '#f1f5f9', color: absentFilter === d ? '#fff' : '#64748b' }}>
-                {d / 7} weeks
-              </button>
-            ))}
-            {neverAttended > 0 && <span style={{ fontSize: '0.78rem', color: '#94a3b8', marginLeft: 'auto' }}>{neverAttended} members have never attended</span>}
           </div>
-          {absentees.length === 0 ? (
-            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>
-              No members absent for {absentFilter / 7}+ weeks.
+        </div>
+      )}
+
+      {/* Members tab */}
+      {tab === 'members' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+            <StatCard label="Total members" value={totalMembers} icon="fa-users" color={NAV} />
+            <StatCard label="Adults" value={adults} icon="fa-person" color="#7c3aed" />
+            <StatCard label="Children" value={children} icon="fa-child" color="#0891b2" />
+            <StatCard label="Added this month" value={newThisMonth} icon="fa-user-plus" color="#16a34a" />
+          </div>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '22px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem' }}>New members per month</div>
+              {isPro && (
+                <button onClick={() => downloadCSV(data.members.map(m => ({ name: '', created: m.created_at?.slice(0, 10), type: m.member_type })), 'members.csv')}
+                  style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 8, padding: '6px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}>
+                  <i className="fas fa-download" style={{ marginRight: 5 }} />CSV
+                </button>
+              )}
             </div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginTop: 14 }}>
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  {['Member', 'Type', 'Last seen', 'Days absent', 'Contact'].map(h => (
-                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {absentees.map(m => {
-                  const days = daysSince(m.lastSeen);
-                  const urgency = days >= 56 ? '#ef4444' : days >= 28 ? '#d97706' : '#64748b';
-                  return (
-                    <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#1e293b' }}>{m.first_name} {m.last_name}</td>
-                      <td style={{ padding: '12px 16px', color: '#64748b', textTransform: 'capitalize' }}>{m.member_type}</td>
-                      <td style={{ padding: '12px 16px', color: '#64748b', whiteSpace: 'nowrap' }}>{m.lastSeen.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{ color: urgency, fontWeight: 700, fontSize: '0.85rem' }}>{days}d</span>
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        {m.email
-                          ? <a href={`mailto:${m.email}?subject=We miss you!`} style={{ color: NAV, fontSize: '0.8rem', fontWeight: 600 }}>Email</a>
-                          : m.phone
-                            ? <a href={`tel:${m.phone}`} style={{ color: NAV, fontSize: '0.8rem', fontWeight: 600 }}>Call</a>
-                            : <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>—</span>
-                        }
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <BarChart data={chartData(membersByMonth)} color="#16a34a" height={160} />
+          </div>
+          {/* Member type breakdown */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: '22px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem', marginBottom: 16 }}>Member breakdown</div>
+            {[
+              { label: 'Adults', count: adults, color: '#7c3aed' },
+              { label: 'Children', count: children, color: '#0891b2' },
+            ].map(r => (
+              <div key={r.label} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, color: '#374151' }}>{r.label}</span>
+                  <span style={{ color: '#64748b' }}>{r.count} ({totalMembers ? Math.round(r.count / totalMembers * 100) : 0}%)</span>
+                </div>
+                <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${totalMembers ? (r.count / totalMembers) * 100 : 0}%`, background: r.color, borderRadius: 4, transition: 'width 0.3s' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {!isPro && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '14px 18px', fontSize: '0.85rem', color: '#92400e' }}>
+              <i className="fas fa-lock" style={{ marginRight: 6 }} />CSV export is a Pro feature. <strong>Upgrade to Pro</strong> to download member data.
+            </div>
           )}
         </div>
-      ) : null} />
+      )}
 
-      {/* Events breakdown */}
-      {events.length > 0 && (
-        <div style={{ background: '#fff', borderRadius: 14, padding: '24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 24 }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 700, color: NAV, marginBottom: 16 }}>Events — registered vs attended</h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                  {['Event', 'Date', 'Registered', 'Attended', 'Walk-ins', 'No-show'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Event' || h === 'Date' ? 'left' : 'center', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {events.slice(0, 20).map(ev => {
-                  const evRsvps = rsvps.filter(r => r.event_id === ev.id);
-                  const attended = evRsvps.filter(r => r.attended_at).length;
-                  const walkInCount = (eventMap[ev.id]?.count || 0);
-                  const noShow = evRsvps.length - attended;
-                  return (
-                    <tr key={ev.id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '12px 12px', fontWeight: 600, color: '#1e293b' }}>{ev.name}</td>
-                      <td style={{ padding: '12px 12px', color: '#64748b', whiteSpace: 'nowrap' }}>{new Date(ev.event_date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                      <td style={{ padding: '12px 12px', textAlign: 'center', fontWeight: evRsvps.length > 0 ? 700 : 400, color: evRsvps.length > 0 ? '#3b82f6' : '#94a3b8' }}>{evRsvps.length || '—'}</td>
-                      <td style={{ padding: '12px 12px', textAlign: 'center', fontWeight: attended > 0 ? 700 : 400, color: attended > 0 ? '#16a34a' : '#94a3b8' }}>{attended || '—'}</td>
-                      <td style={{ padding: '12px 12px', textAlign: 'center', color: walkInCount > 0 ? '#d97706' : '#94a3b8', fontWeight: walkInCount > 0 ? 700 : 400 }}>{walkInCount || '—'}</td>
-                      <td style={{ padding: '12px 12px', textAlign: 'center', color: noShow > 0 ? '#ef4444' : '#94a3b8' }}>{evRsvps.length > 0 ? (noShow || '—') : '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* First Timers tab */}
+      {tab === 'firsttimers' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+            <StatCard label="Total first timers" value={data.firstTimers.length} icon="fa-door-open" color="#0891b2" />
+            <StatCard label="This month" value={data.firstTimers.filter(f => f.created_at?.slice(0, 7) === months[months.length - 1]).length} icon="fa-calendar" color={GOLD} />
+            <StatCard label="Followed up" value={data.firstTimers.filter(f => f.follow_up_status && f.follow_up_status !== 'pending').length} icon="fa-check-circle" color="#16a34a" />
+            <StatCard label="Pending" value={ftByStatus['pending'] || 0} icon="fa-clock" color="#94a3b8" />
           </div>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '22px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem' }}>First timers per month</div>
+              {isPro && (
+                <button onClick={() => downloadCSV(months.map(m => ({ month: m, first_timers: firstTimersByMonth[m] || 0 })), 'first-timers-by-month.csv')}
+                  style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 8, padding: '6px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}>
+                  <i className="fas fa-download" style={{ marginRight: 5 }} />CSV
+                </button>
+              )}
+            </div>
+            <BarChart data={chartData(firstTimersByMonth)} color="#0891b2" height={160} />
+          </div>
+          {/* Follow-up status breakdown */}
+          {Object.keys(ftByStatus).length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 14, padding: '22px 20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem', marginBottom: 16 }}>Follow-up status</div>
+              {Object.entries(ftByStatus).map(([status, count]) => (
+                <div key={status} style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 4 }}>
+                    <span style={{ fontWeight: 600, color: '#374151', textTransform: 'capitalize' }}>{status.replace('_', ' ')}</span>
+                    <span style={{ color: '#64748b' }}>{count} ({data.firstTimers.length ? Math.round(count / data.firstTimers.length * 100) : 0}%)</span>
+                  </div>
+                  <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${data.firstTimers.length ? (count / data.firstTimers.length) * 100 : 0}%`, background: '#0891b2', borderRadius: 4, transition: 'width 0.3s' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
