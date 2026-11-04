@@ -124,7 +124,7 @@ async function autoUpsertMember(churchId, firstName, lastName, opts = {}) {
   if (existing) return existing.id;
   const { data, error } = await supabase.from('cc_members').insert({
     church_id: churchId, first_name: fn, last_name: ln || null,
-    member_type: opts.memberType || 'adult', parent_id: opts.parentId || null, is_active: true,
+    member_type: opts.memberType || 'adult', is_active: true,
   }).select('id').single();
   return error ? null : data.id;
 }
@@ -183,7 +183,7 @@ async function checkin(body) {
   // Auto-add new visitors to members (no-op if they're already a known member or already in members table)
   if (!member && name) {
     const { firstName, lastName } = splitName(name);
-    await autoUpsertMember(churchId, firstName, lastName, { memberType: type === 'child' ? 'child' : 'adult' });
+    await autoUpsertMember(churchId, firstName, lastName, { memberType: type });
   }
 
   return NextResponse.json({ ok: true, pickupCode });
@@ -220,7 +220,7 @@ async function familyCheckin(body) {
   const guardianMemberId = await autoUpsertMember(churchId, gFn, gLn, { memberType: 'adult' });
   for (const k of kids) {
     const { firstName: kFn, lastName: kLn } = splitName(k.name);
-    await autoUpsertMember(churchId, kFn, kLn, { memberType: 'child', parentId: guardianMemberId });
+    await autoUpsertMember(churchId, kFn, kLn, { memberType: 'child' });
   }
 
   return NextResponse.json({ ok: true, pickupCode: code, count: kids.length });
