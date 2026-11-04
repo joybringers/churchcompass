@@ -8,7 +8,7 @@ const GREEN = '#10b981';
 const RED = '#ef4444';
 const PURPLE = '#8b5cf6';
 
-function fmt£(n) { return `£${Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` }
+function fmtGBP(n) { return `£${Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` }
 
 function relativeTime(iso) {
   if (!iso) return '—';
@@ -217,8 +217,8 @@ export default function ElmorilAdmin() {
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Revenue</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
-                <KPI label="MRR" value={fmt£(T.mrr)} sub="est. monthly recurring" color={GREEN} icon="fa-sterling-sign" change={T.newChurchesThisMonth > 0 ? T.newChurchesThisMonth * 9 : undefined} />
-                <KPI label="ARR" value={fmt£(T.arr)} sub="est. annual run rate" color={GREEN} icon="fa-chart-line" />
+                <KPI label="MRR" value={fmtGBP(T.mrr)} sub="est. monthly recurring" color={GREEN} icon="fa-sterling-sign" change={T.newChurchesThisMonth > 0 ? T.newChurchesThisMonth * 9 : undefined} />
+                <KPI label="ARR" value={fmtGBP(T.arr)} sub="est. annual run rate" color={GREEN} icon="fa-chart-line" />
                 <KPI label="Pro subscribers" value={T.proChurches} sub={`of ${T.churches} churches`} color={PURPLE} icon="fa-crown" change={T.proChurches} />
                 <KPI label="Conversion rate" value={`${T.conversionRate}%`} sub="Free → Pro" color={ACCENT} icon="fa-arrow-trend-up" />
               </div>
@@ -289,7 +289,7 @@ export default function ElmorilAdmin() {
                 ))}
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
                   <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: 2 }}>Est. MRR from Pro</div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: GREEN }}>{fmt£(T.mrr)}</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: GREEN }}>{fmtGBP(T.mrr)}</div>
                 </div>
               </div>
             </div>
