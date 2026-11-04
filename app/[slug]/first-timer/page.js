@@ -19,7 +19,7 @@ export default function FirstTimer() {
     fetch(`/api/churches?slug=${slug}`).then(r => r.json()).then(d => {
       setChurch(d.church || null);
       if (d.church) {
-        fetch(`/api/custom-fields?churchId=${d.church.id}&formType=first_timer`).then(r => r.json()).then(cf => setCustomFields(cf.fields || []));
+        fetch(`/api/custom-fields?churchId=${d.church.id}&formType=first_timers`).then(r => r.json()).then(cf => setCustomFields(cf.fields || []));
       }
     });
   }, [slug]);
