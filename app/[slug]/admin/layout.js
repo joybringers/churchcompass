@@ -179,6 +179,18 @@ export default function AdminLayout({ children }) {
         </aside>
         {/* Main */}
         <main style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+          {(church?.plan || 'free') === 'free' && (
+            <div style={{ background: 'linear-gradient(90deg, #1e3a5f 0%, #2d5282 100%)', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <i className="fas fa-bolt" style={{ color: GOLD, fontSize: 14, flexShrink: 0 }} />
+              <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.825rem', flex: 1 }}>
+                You're on the <strong>Free plan</strong> — limited to 100 members and 3 admins.
+              </span>
+              <button onClick={() => router.push(`/${slug}/admin/settings`)}
+                style={{ background: GOLD, color: '#1e3a5f', border: 'none', borderRadius: 8, padding: '6px 16px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Upgrade to Pro →
+              </button>
+            </div>
+          )}
           {children}
         </main>
       </div>
