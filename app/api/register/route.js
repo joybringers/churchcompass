@@ -6,7 +6,7 @@ import { sendEmail } from '@/lib/email';
 
 export async function POST(req) {
   try {
-    const { name, slug, denomination, address, phone, adminEmail, password, plan, billing } = await req.json();
+    const { name, slug, denomination, address, phone, adminEmail, password, plan, billing, currency } = await req.json();
     if (!name || !slug || !adminEmail || !password) return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
 
     const { data: existing } = await supabase.from('cc_churches').select('id').eq('slug', slug).single();
@@ -63,7 +63,32 @@ export async function POST(req) {
       } catch { /* if Stripe fails, let them in on free and upgrade from settings */ }
     }
 
-    return NextResponse.json({ ok: true, slug, stripeUrl });
+    // If Nigerian church registering for Pro, use Paystack
+    let paystackUrl = null;
+    if (plan === 'pro' && currency === 'ngn' && process.env.PAYSTACK_SECRET_KEY && !stripeUrl) {
+      try {
+        const isAnnual = billing === 'annual';
+        const planCode = isAnnual ? process.env.PAYSTACK_PLAN_ANNUAL_NGN : process.env.PAYSTACK_PLAN_MONTHLY_NGN;
+        if (planCode) {
+          const reference = `cc_${church.id.replace(/-/g, '')}_${Date.now()}`;
+          const psRes = await fetch('https://api.paystack.co/transaction/initialize', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: adminEmail,
+              plan: planCode,
+              callback_url: `${baseUrl}/${slug}/admin?upgraded=1`,
+              reference,
+              metadata: { church_id: church.id, billing: isAnnual ? 'annual' : 'monthly' },
+            }),
+          });
+          const psData = await psRes.json();
+          if (psData.status) paystackUrl = psData.data.authorization_url;
+        }
+      } catch { /* fall through to free if Paystack fails */ }
+    }
+
+    return NextResponse.json({ ok: true, slug, stripeUrl, paystackUrl });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

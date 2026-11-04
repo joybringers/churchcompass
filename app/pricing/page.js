@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const NAV = '#1e3a5f';
@@ -127,8 +127,16 @@ function ContactModal({ onClose }) {
 export default function Pricing() {
   const [billing, setBilling] = useState('monthly');
   const [showContact, setShowContact] = useState(false);
+  const [isNigeria, setIsNigeria] = useState(false);
   const isAnnual = billing === 'annual';
   const router = useRouter();
+
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setIsNigeria(tz === 'Africa/Lagos');
+    } catch {}
+  }, []);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column' }}>
@@ -169,7 +177,11 @@ export default function Pricing() {
               <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: '0.65rem', fontWeight: 800, padding: '2px 6px', borderRadius: 20 }}>SAVE 17%</span>
             </button>
           </div>
-          {isAnnual && <p style={{ color: '#16a34a', fontSize: '0.8rem', fontWeight: 600, marginTop: 10 }}>2 months free — £90/year instead of £108</p>}
+          {isAnnual && (
+            <p style={{ color: '#16a34a', fontSize: '0.8rem', fontWeight: 600, marginTop: 10 }}>
+              {isNigeria ? '2 months free — ₦20,000/year instead of ₦24,000' : '2 months free — £90/year instead of £108'}
+            </p>
+          )}
         </div>
 
         {/* Cards */}
@@ -204,7 +216,27 @@ export default function Pricing() {
             </div>
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontWeight: 800, color: GOLD, fontSize: '1.1rem', marginBottom: 4 }}>Pro</div>
-              {isAnnual ? (
+              {isNigeria ? (
+              isAnnual ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ fontSize: '2.8rem', fontWeight: 900, color: '#fff' }}>₦20,000</span>
+                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>/year</span>
+                  </div>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', textDecoration: 'line-through', marginTop: 2 }}>₦24,000/year</div>
+                  <div style={{ fontSize: '0.78rem', color: GOLD, fontWeight: 600, marginTop: 4 }}>₦1,667/month · 2 months free</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ fontSize: '2.8rem', fontWeight: 900, color: '#fff' }}>₦2,000</span>
+                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>/month</span>
+                  </div>
+                  <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 8 }}>For growing churches that need the full toolkit.</p>
+                  <div style={{ fontSize: '0.78rem', color: GOLD, fontWeight: 600, marginTop: 4 }}>Paid via Paystack · Cancel anytime</div>
+                </>
+              )
+            ) : isAnnual ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                     <span style={{ fontSize: '2.8rem', fontWeight: 900, color: '#fff' }}>£90</span>
@@ -226,7 +258,9 @@ export default function Pricing() {
             </div>
             <a href={`/register?plan=pro&billing=${billing}`}
               style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 12, background: GOLD, color: NAV, fontWeight: 800, fontSize: '0.95rem', textDecoration: 'none', marginBottom: 28 }}>
-              {isAnnual ? 'Get Pro — £90/year' : 'Start 14-day free trial'}
+              {isNigeria
+                ? (isAnnual ? 'Get Pro — ₦20,000/year' : 'Get Pro — ₦2,000/month')
+                : (isAnnual ? 'Get Pro — £90/year' : 'Start 14-day free trial')}
             </a>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {PRO_FEATURES.map(f => (
@@ -265,14 +299,21 @@ export default function Pricing() {
         <div style={{ marginTop: 64, background: '#fff', borderRadius: 16, padding: '32px 28px', boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: NAV, marginBottom: 24 }}>Common questions</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
-            {[
+            {(isNigeria ? [
+              { q: 'Do I need a card to start?', a: 'No. The Free plan is free forever — no card required. For Pro, you pay via Paystack (cards, bank transfers, USSD) after signup.' },
+              { q: 'Can I upgrade at any time?', a: 'Yes. Upgrade from your admin settings and your data carries over instantly.' },
+              { q: 'How do I pay?', a: 'Pro subscriptions for Nigerian churches are billed in Naira (₦) via Paystack. We accept debit cards, bank transfers, and USSD.' },
+              { q: "What's the difference between monthly and annual?", a: "Annual billing is ₦20,000/year — that's 2 months free compared to paying ₦2,000 each month. Payment is taken upfront." },
+              { q: 'How do I cancel?', a: 'Email admin@elmorilx.com and we\'ll cancel your subscription within 24 hours.' },
+              { q: 'What happens when I hit 100 members on Free?', a: "You can still use the system — you just won't be able to add more members until you upgrade to Pro." },
+            ] : [
               { q: 'Do I need a credit card to start?', a: 'No. The Free plan is free forever — no card required. For the Pro monthly trial, you add your card after signup but nothing is charged for 14 days.' },
               { q: 'Can I upgrade at any time?', a: 'Yes. Upgrade from your admin settings and your data carries over instantly.' },
               { q: 'What happens after the 14-day trial?', a: "Your card is charged £9/month automatically. Cancel any time before the trial ends and you won't be charged." },
               { q: "What's the difference between monthly and annual?", a: "Annual billing is £90/year — that's 2 months free compared to paying monthly. Payment is taken upfront for the year." },
               { q: 'Can I switch between monthly and annual?', a: 'Yes. Contact us and we can switch your billing at the next renewal with no penalty.' },
               { q: 'What happens when I hit 100 members on Free?', a: "You can still use the system — you just won't be able to add more members until you upgrade to Pro." },
-            ].map(({ q, a }) => (
+            ]).map(({ q, a }) => (
               <div key={q}>
                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem', marginBottom: 6 }}>{q}</div>
                 <div style={{ color: '#64748b', fontSize: '0.85rem', lineHeight: 1.6 }}>{a}</div>

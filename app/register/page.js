@@ -1,5 +1,5 @@
 'use client';
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const NAV = '#1e3a5f';
@@ -19,6 +19,14 @@ function RegisterForm() {
   const [form, setForm] = useState({ name: '', slug: '', denomination: '', address: '', phone: '', adminEmail: '', password: '', confirm: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isNigeria, setIsNigeria] = useState(false);
+
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setIsNigeria(tz === 'Africa/Lagos');
+    } catch {}
+  }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const handleName = (v) => { set('name', v); if (!form.slug || form.slug === slugify(form.name)) set('slug', slugify(v)); };
@@ -31,12 +39,14 @@ function RegisterForm() {
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name, slug: form.slug, denomination: form.denomination, address: form.address, phone: form.phone, adminEmail: form.adminEmail, password: form.password, plan: isPro ? 'pro' : 'free', billing }),
+      body: JSON.stringify({ name: form.name, slug: form.slug, denomination: form.denomination, address: form.address, phone: form.phone, adminEmail: form.adminEmail, password: form.password, plan: isPro ? 'pro' : 'free', billing, currency: isNigeria ? 'ngn' : 'gbp' }),
     });
     const data = await res.json();
     if (!res.ok) { setError(data.error || 'Registration failed.'); setLoading(false); return; }
     if (data.stripeUrl) {
       window.location.href = data.stripeUrl;
+    } else if (data.paystackUrl) {
+      window.location.href = data.paystackUrl;
     } else {
       router.push(`/${form.slug}/admin`);
     }
@@ -63,12 +73,16 @@ function RegisterForm() {
             <i className="fas fa-bolt" style={{ color: GOLD, marginTop: 2, flexShrink: 0 }} />
             <div>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.875rem' }}>
-                Starting Pro — {billing === 'annual' ? '£90/year' : '14-day free trial'}
+                {isNigeria
+                  ? `Starting Pro — ${billing === 'annual' ? '₦20,000/year' : '₦2,000/month'}`
+                  : `Starting Pro — ${billing === 'annual' ? '£90/year' : '14-day free trial'}`}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.78rem', marginTop: 2 }}>
-                {billing === 'annual'
-                  ? 'After creating your account you\'ll set up annual payment on the next step.'
-                  : 'After creating your account you\'ll add a card — no charge for 14 days.'}
+                {isNigeria
+                  ? 'After creating your account you\'ll complete payment via Paystack.'
+                  : billing === 'annual'
+                    ? 'After creating your account you\'ll set up annual payment on the next step.'
+                    : 'After creating your account you\'ll add a card — no charge for 14 days.'}
               </div>
             </div>
           </div>
@@ -118,7 +132,9 @@ function RegisterForm() {
           {isPro && (
             <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8', marginTop: -8 }}>
               <i className="fas fa-lock" style={{ marginRight: 4 }} />
-              {billing === 'annual' ? 'Secure payment via Stripe. Cancel anytime.' : 'No charge until your 14-day trial ends. Cancel anytime.'}
+              {isNigeria
+                ? 'Secure payment via Paystack. Cancel anytime.'
+                : billing === 'annual' ? 'Secure payment via Stripe. Cancel anytime.' : 'No charge until your 14-day trial ends. Cancel anytime.'}
             </p>
           )}
         </form>

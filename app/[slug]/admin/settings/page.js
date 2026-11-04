@@ -64,9 +64,18 @@ export default function Settings() {
   // Billing
   const [billingLoading, setBillingLoading] = useState(false);
   const [upgradeLoading, setUpgradeLoading] = useState('');
+  const [isNigeria, setIsNigeria] = useState(false);
 
   const { church, token, slug, admin } = ctx || {};
   const isPro = church?.plan === 'pro' || church?.plan === 'custom';
+  const isPaystack = church?.payment_provider === 'paystack';
+
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setIsNigeria(tz === 'Africa/Lagos');
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!ctx) return;
@@ -185,7 +194,9 @@ export default function Settings() {
 
   const startCheckout = async (billing) => {
     setUpgradeLoading(billing);
-    const res = await fetch('/api/stripe/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ churchId: church.id, billing }) });
+    const usePaystack = isNigeria || church?.currency === 'ngn';
+    const endpoint = usePaystack ? '/api/paystack/checkout' : '/api/stripe/checkout';
+    const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ churchId: church.id, billing }) });
     const data = await res.json();
     setUpgradeLoading('');
     if (data.url) window.location.href = data.url;
@@ -344,7 +355,7 @@ export default function Settings() {
                   {isPro && <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 600 }}><i className="fas fa-circle-check" style={{ marginRight: 4 }} />Active</span>}
                 </div>
               </div>
-              {isPro && (
+              {isPro && !isPaystack && (
                 <button onClick={openBillingPortal} disabled={billingLoading}
                   style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: billingLoading ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
                   <i className="fas fa-arrow-up-right-from-square" style={{ marginRight: 6 }} />
@@ -352,9 +363,16 @@ export default function Settings() {
                 </button>
               )}
             </div>
-            {isPro && (
+            {isPro && !isPaystack && (
               <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: 12 }}>
                 To cancel, change payment method, or download invoices — click <strong>Manage billing</strong> above.
+              </p>
+            )}
+            {isPro && isPaystack && (
+              <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: 12 }}>
+                <i className="fas fa-credit-card" style={{ marginRight: 6, color: '#16a34a' }} />
+                Billed in Naira (₦) via Paystack.{' '}
+                To cancel or update your payment method, email <strong>admin@elmorilx.com</strong>.
               </p>
             )}
           </div>
@@ -366,25 +384,38 @@ export default function Settings() {
                 <div style={{ color: GOLD, fontWeight: 800, fontSize: '1rem', marginBottom: 4 }}>Upgrade to Pro</div>
                 <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.875rem' }}>Unlock unlimited members, admins, CSV export, Groups, Guard, Communications and more.</p>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <button onClick={() => startCheckout('monthly')} disabled={upgradeLoading}
-                  style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: upgradeLoading ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: GOLD }}>£9<span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>/month</span></div>
-                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>14-day free trial</div>
-                  <div style={{ marginTop: 10, background: GOLD, color: NAV, borderRadius: 8, padding: '8px 12px', textAlign: 'center', fontSize: '0.825rem', fontWeight: 800 }}>
-                    {upgradeLoading === 'monthly' ? 'Redirecting…' : 'Start free trial →'}
+              {(() => {
+                const useNGN = isNigeria || church?.currency === 'ngn';
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <button onClick={() => startCheckout('monthly')} disabled={!!upgradeLoading}
+                      style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: upgradeLoading ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 900, color: GOLD }}>
+                        {useNGN ? '₦2,000' : '£9'}<span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>/month</span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                        {useNGN ? 'Paid via Paystack' : '14-day free trial'}
+                      </div>
+                      <div style={{ marginTop: 10, background: GOLD, color: NAV, borderRadius: 8, padding: '8px 12px', textAlign: 'center', fontSize: '0.825rem', fontWeight: 800 }}>
+                        {upgradeLoading === 'monthly' ? 'Redirecting…' : (useNGN ? 'Get Pro monthly →' : 'Start free trial →')}
+                      </div>
+                    </button>
+                    <button onClick={() => startCheckout('annual')} disabled={!!upgradeLoading}
+                      style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: upgradeLoading ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'inherit', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', top: 10, right: 10, background: '#dcfce7', color: '#16a34a', fontSize: '0.6rem', fontWeight: 800, padding: '2px 6px', borderRadius: 20 }}>SAVE 17%</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 900, color: GOLD }}>
+                        {useNGN ? '₦20,000' : '£90'}<span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>/year</span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                        {useNGN ? '₦1,667/mo · 2 months free' : '£7.50/mo · 2 months free'}
+                      </div>
+                      <div style={{ marginTop: 10, background: 'rgba(255,255,255,0.15)', color: '#fff', borderRadius: 8, padding: '8px 12px', textAlign: 'center', fontSize: '0.825rem', fontWeight: 800 }}>
+                        {upgradeLoading === 'annual' ? 'Redirecting…' : 'Get annual →'}
+                      </div>
+                    </button>
                   </div>
-                </button>
-                <button onClick={() => startCheckout('annual')} disabled={upgradeLoading}
-                  style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: upgradeLoading ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'inherit', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: 10, right: 10, background: '#dcfce7', color: '#16a34a', fontSize: '0.6rem', fontWeight: 800, padding: '2px 6px', borderRadius: 20 }}>SAVE 17%</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: GOLD }}>£90<span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>/year</span></div>
-                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>£7.50/mo · 2 months free</div>
-                  <div style={{ marginTop: 10, background: 'rgba(255,255,255,0.15)', color: '#fff', borderRadius: 8, padding: '8px 12px', textAlign: 'center', fontSize: '0.825rem', fontWeight: 800 }}>
-                    {upgradeLoading === 'annual' ? 'Redirecting…' : 'Get annual →'}
-                  </div>
-                </button>
-              </div>
+                );
+              })()}
             </div>
           )}
         </div>
