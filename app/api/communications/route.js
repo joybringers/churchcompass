@@ -56,7 +56,8 @@ export async function POST(req) {
       .replace(/\{last_name\}/gi, r.last_name || '')
       .replace(/\{name\}/gi, `${r.first_name || ''} ${r.last_name || ''}`.trim());
     const result = await sendEmail({ to: r.email, subject, body: personalised, fromName: church.name });
-    if (result.sent) sent++; else failed++;
+    if (result.sent) sent++;
+    else { failed++; if (sent + failed === 1) console.error('[comms] first send failed:', result); }
   }
 
   // Log campaign
