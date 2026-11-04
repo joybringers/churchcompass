@@ -1,21 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
-const NAV = '#1e3a5f';
+const NAV = '#0f172a';
+const ACCENT = '#6366f1';
 const GOLD = '#f59e0b';
+const GREEN = '#10b981';
+const RED = '#ef4444';
+const PURPLE = '#8b5cf6';
 
-const COMPASS = (
-  <svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <rect width="100" height="100" rx="18" fill={NAV}/>
-    <polygon points="50,85 59,68 50,50 41,68" fill={GOLD} opacity="0.4"/>
-    <polygon points="85,50 68,41 50,50 68,59" fill={GOLD} opacity="0.4"/>
-    <polygon points="15,50 32,41 50,50 32,59" fill={GOLD} opacity="0.4"/>
-    <polygon points="50,13 59,32 50,50 41,32" fill={GOLD}/>
-    <circle cx="50" cy="50" r="7" fill="#fff"/>
-    <circle cx="50" cy="50" r="3.5" fill={NAV}/>
-  </svg>
-);
+function fmt£(n) { return `£${Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` }
 
 function relativeTime(iso) {
   if (!iso) return '—';
@@ -24,11 +17,62 @@ function relativeTime(iso) {
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   if (diff < 7 * 86400000) return `${Math.floor(diff / 86400000)}d ago`;
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: diff > 365 * 86400000 ? 'numeric' : undefined });
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function KPI({ label, value, sub, color = ACCENT, icon, change }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
+        {icon && <i className={`fas ${icon}`} style={{ color, opacity: 0.5, fontSize: 14 }} />}
+      </div>
+      <div style={{ fontSize: '1.9rem', fontWeight: 900, color: NAV, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {change !== undefined && (
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: change >= 0 ? GREEN : RED, background: change >= 0 ? '#f0fdf4' : '#fef2f2', padding: '1px 6px', borderRadius: 20 }}>
+            {change >= 0 ? '+' : ''}{change}
+          </span>
+        )}
+        {sub && <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+function PlanChip({ plan }) {
+  const cfg = {
+    pro: { bg: '#ede9fe', color: PURPLE, label: 'Pro' },
+    custom: { bg: '#fef9c3', color: '#a16207', label: 'Custom' },
+    free: { bg: '#f1f5f9', color: '#64748b', label: 'Free' },
+  }[plan] || { bg: '#f1f5f9', color: '#64748b', label: 'Free' };
+  return <span style={{ background: cfg.bg, color: cfg.color, fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{cfg.label}</span>;
+}
+
+function StageBar({ stage, count, total, description, i }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const colors = [ACCENT, '#0ea5e9', GREEN, GOLD, PURPLE, '#e11d48'];
+  const color = colors[i % colors.length];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+      <div style={{ width: 24, height: 24, borderRadius: '50%', background: color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <span style={{ fontSize: '0.65rem', fontWeight: 900, color }}>{i + 1}</span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>{stage}</span>
+          <span style={{ fontSize: '0.8rem', fontWeight: 800, color, minWidth: 60, textAlign: 'right' }}>{count} <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.72rem' }}>({pct}%)</span></span>
+        </div>
+        <div style={{ background: '#f1f5f9', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+          <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: 4, transition: 'width 0.5s ease' }} />
+        </div>
+        <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: 2 }}>{description}</div>
+      </div>
+    </div>
+  );
 }
 
 export default function ElmorilAdmin() {
-  const router = useRouter();
   const [keyInput, setKeyInput] = useState('');
   const [authed, setAuthed] = useState(false);
   const [data, setData] = useState(null);
@@ -37,7 +81,9 @@ export default function ElmorilAdmin() {
   const [sort, setSort] = useState('lastActivity');
   const [sortDir, setSortDir] = useState('desc');
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all'); // all | active | inactive
+  const [filter, setFilter] = useState('all');
+  const [planFilter, setPlanFilter] = useState('all');
+  const [view, setView] = useState('overview'); // overview | churches
 
   useEffect(() => {
     try {
@@ -47,25 +93,20 @@ export default function ElmorilAdmin() {
   }, []);
 
   const fetchData = async (k) => {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const res = await fetch(`/api/elmoril?key=${encodeURIComponent(k)}`);
-      if (res.status === 401) { setError('Invalid key — check and try again.'); setLoading(false); return; }
+      if (res.status === 401) { setError('Invalid key.'); setLoading(false); return; }
       const d = await res.json();
-      setData(d);
-      setAuthed(true);
+      setData(d); setAuthed(true);
       try { sessionStorage.setItem('elmoril_key', k); } catch {}
-    } catch {
-      setError('Could not connect. Try again.');
-    }
+    } catch { setError('Could not connect.'); }
     setLoading(false);
   };
 
   const signOut = () => {
     setAuthed(false); setData(null);
     try { sessionStorage.removeItem('elmoril_key'); } catch {}
-    router.push('/');
   };
 
   const toggleSort = (col) => {
@@ -73,32 +114,29 @@ export default function ElmorilAdmin() {
     else { setSort(col); setSortDir('desc'); }
   };
 
-  // --- LOGIN ---
+  // ── LOGIN ──
   if (!authed) {
     return (
-      <div style={{ minHeight: '100vh', background: `linear-gradient(145deg, #0c2040 0%, ${NAV} 60%, #0f2744 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-        <div style={{ background: '#fff', borderRadius: 22, padding: '44px 40px', width: '100%', maxWidth: 400, boxShadow: '0 32px 80px rgba(0,0,0,0.4)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-            {COMPASS}
+      <div style={{ minHeight: '100vh', background: `radial-gradient(ellipse at top, #1e1b4b 0%, ${NAV} 60%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div style={{ background: '#fff', borderRadius: 20, padding: '44px 40px', width: '100%', maxWidth: 400, boxShadow: '0 40px 100px rgba(0,0,0,0.5)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="fas fa-compass" style={{ color: '#fff', fontSize: 18 }} />
+            </div>
             <div>
-              <div style={{ fontWeight: 900, fontSize: '0.85rem', color: NAV, letterSpacing: '0.04em' }}>ELMORIL <span style={{ color: GOLD }}>PLATFORM</span></div>
-              <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>ChurchCompass Admin</div>
+              <div style={{ fontWeight: 900, fontSize: '0.9rem', color: NAV, letterSpacing: '0.04em' }}>ELMORIL <span style={{ color: ACCENT }}>PLATFORM</span></div>
+              <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Internal Admin · ChurchCompass</div>
             </div>
           </div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 900, color: NAV, marginBottom: 6 }}>Platform Dashboard</h1>
-          <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 26 }}>Enter your Elmoril admin key to access usage data.</p>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 900, color: NAV, marginBottom: 6 }}>Platform Overview</h1>
+          <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: 28 }}>Revenue, activation and church analytics.</p>
           <form onSubmit={e => { e.preventDefault(); fetchData(keyInput); }}>
-            <div style={{ position: 'relative', marginBottom: 14 }}>
-              <input
-                type="password" value={keyInput} onChange={e => setKeyInput(e.target.value)}
-                placeholder="Admin key"
-                style={{ width: '100%', padding: '15px 18px', border: `2px solid ${error ? '#fecaca' : '#e2e8f0'}`, borderRadius: 12, fontSize: '1rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: error ? '#fff5f5' : '#fff' }}
-              />
-            </div>
-            {error && <p style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: 12, fontWeight: 600 }}>{error}</p>}
+            <input type="password" value={keyInput} onChange={e => setKeyInput(e.target.value)} placeholder="Admin key"
+              style={{ width: '100%', padding: '14px 16px', border: `2px solid ${error ? '#fecaca' : '#e2e8f0'}`, borderRadius: 12, fontSize: '1rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: error ? 8 : 14 }} />
+            {error && <p style={{ color: RED, fontSize: '0.8rem', marginBottom: 12, fontWeight: 600 }}>{error}</p>}
             <button type="submit" disabled={loading || !keyInput}
-              style={{ width: '100%', background: loading || !keyInput ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 12, padding: '15px', fontWeight: 700, cursor: loading || !keyInput ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: '0.95rem', transition: 'background 0.15s' }}>
-              {loading ? 'Checking…' : 'Access Dashboard'}
+              style={{ width: '100%', background: ACCENT, color: '#fff', border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', opacity: loading || !keyInput ? 0.6 : 1 }}>
+              {loading ? 'Checking…' : 'Access dashboard →'}
             </button>
           </form>
         </div>
@@ -106,14 +144,15 @@ export default function ElmorilAdmin() {
     );
   }
 
-  // --- DASHBOARD ---
-  const T = data.totals;
-  const monthly = data.monthly || [];
+  const { totals: T, funnel, monthlySignups, churches } = data;
 
-  let rows = [...(data.churches || [])];
+  // Filter churches
+  let rows = [...(churches || [])];
   if (filter === 'active') rows = rows.filter(c => c.isActive);
   if (filter === 'inactive') rows = rows.filter(c => !c.isActive);
-  if (search) rows = rows.filter(c => `${c.name} ${c.slug} ${c.adminEmail} ${c.denomination || ''}`.toLowerCase().includes(search.toLowerCase()));
+  if (planFilter === 'pro') rows = rows.filter(c => c.plan === 'pro' || c.plan === 'custom');
+  if (planFilter === 'free') rows = rows.filter(c => !c.plan || c.plan === 'free');
+  if (search) rows = rows.filter(c => `${c.name} ${c.slug} ${c.adminEmail}`.toLowerCase().includes(search.toLowerCase()));
   rows.sort((a, b) => {
     let av = a[sort] ?? '', bv = b[sort] ?? '';
     if (sort === 'lastActivity' || sort === 'createdAt') { av = av || '0'; bv = bv || '0'; }
@@ -121,137 +160,254 @@ export default function ElmorilAdmin() {
     return sortDir === 'asc' ? av - bv : bv - av;
   });
 
-  const maxMonthly = Math.max(...monthly.map(m => m.count), 1);
-  const th = { padding: '10px 14px', textAlign: 'left', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none', background: '#f8fafc' };
-  const td = (extra = {}) => ({ padding: '14px 14px', fontSize: '0.875rem', color: '#334155', borderBottom: '1px solid #f1f5f9', verticalAlign: 'middle', ...extra });
+  const maxSignups = Math.max(...(monthlySignups || []).map(m => m.signups), 1);
+  const maxSignIns = Math.max(...(monthlySignups || []).map(m => m.signIns), 1);
+
+  const TH = ({ children, col, right }) => (
+    <th onClick={() => col && toggleSort(col)}
+      style={{ padding: '10px 14px', textAlign: right ? 'right' : 'left', fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', cursor: col ? 'pointer' : 'default', whiteSpace: 'nowrap', userSelect: 'none', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+      {children}{col && sort === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+    </th>
+  );
+
+  const featureDot = (has) => (
+    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: has ? GREEN : '#e2e8f0' }} />
+  );
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6fb', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "'Inter', system-ui, sans-serif", color: NAV }}>
 
-      {/* Top bar */}
-      <div style={{ background: NAV, padding: '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 12px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {COMPASS}
-          <div>
-            <div style={{ color: '#fff', fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.04em' }}>ELMORIL <span style={{ color: GOLD }}>PLATFORM</span></div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.65rem' }}>ChurchCompass · Internal Admin</div>
+      {/* Top nav */}
+      <div style={{ background: NAV, borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="fas fa-compass" style={{ color: '#fff', fontSize: 13 }} />
+            </div>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.04em' }}>ELMORIL <span style={{ color: ACCENT }}>PLATFORM</span></span>
+          </div>
+          <div style={{ display: 'flex', gap: 2 }}>
+            {[['overview', 'Overview'], ['churches', 'Churches']].map(([id, label]) => (
+              <button key={id} onClick={() => setView(id)}
+                style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: view === id ? 'rgba(99,102,241,0.2)' : 'transparent', color: view === id ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontWeight: 600, fontSize: '0.825rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                {label}
+              </button>
+            ))}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.72rem' }}>Last refreshed: {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
           <button onClick={() => fetchData(sessionStorage.getItem('elmoril_key') || '')}
-            style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
-            ↻ Refresh
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>
+            <i className="fas fa-rotate" style={{ marginRight: 5 }} />{loading ? 'Refreshing…' : 'Refresh'}
           </button>
           <button onClick={signOut}
-            style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}>
             Sign out
           </button>
         </div>
       </div>
 
-      <div style={{ padding: '32px 28px', maxWidth: 1280, margin: '0 auto' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '28px 24px' }}>
 
-        {/* Stat tiles */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginBottom: 28 }}>
-          {[
-            { label: 'Total Churches', value: T.churches, sub: `${T.activeChurches} active (30d)`, accent: NAV },
-            { label: 'Sign-ins This Month', value: T.signInsThisMonth.toLocaleString(), sub: 'calendar month', accent: '#7c3aed' },
-            { label: 'Sign-ins This Week', value: T.signInsThisWeek.toLocaleString(), sub: 'last 7 days', accent: '#0891b2' },
-            { label: 'All-time Sign-ins', value: T.totalSignIns.toLocaleString(), sub: 'across all churches', accent: '#059669' },
-            { label: 'Total Members', value: T.totalMembers.toLocaleString(), sub: 'active records', accent: GOLD },
-            { label: 'First Timers', value: (T.totalFirstTimers || 0).toLocaleString(), sub: 'all time', accent: '#e11d48' },
-            { label: 'Events Created', value: (T.totalEvents || 0).toLocaleString(), sub: 'across all churches', accent: '#d97706' },
-          ].map(({ label, value, sub, accent }) => (
-            <div key={label} style={{ background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 16, padding: '20px 20px', borderTop: `3px solid ${accent}` }}>
-              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 10 }}>{label}</div>
-              <div style={{ fontSize: '2rem', fontWeight: 900, color: accent, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-              <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 6 }}>{sub}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Activity chart (6-month bar) */}
-        <div style={{ background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 16, padding: '24px 24px 20px', marginBottom: 24 }}>
-          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 20 }}>Sign-ins — last 6 months</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 80 }}>
-            {monthly.map((m, i) => (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{m.count || ''}</div>
-                <div style={{ width: '100%', background: i === monthly.length - 1 ? NAV : '#c7d9ef', borderRadius: '4px 4px 0 0', height: `${Math.max(4, (m.count / maxMonthly) * 52)}px`, transition: 'height 0.3s' }} />
-                <div style={{ fontSize: '0.65rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>{m.label}</div>
+        {/* ── OVERVIEW ── */}
+        {view === 'overview' && (
+          <>
+            {/* Revenue row */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Revenue</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
+                <KPI label="MRR" value={fmt£(T.mrr)} sub="est. monthly recurring" color={GREEN} icon="fa-sterling-sign" change={T.newChurchesThisMonth > 0 ? T.newChurchesThisMonth * 9 : undefined} />
+                <KPI label="ARR" value={fmt£(T.arr)} sub="est. annual run rate" color={GREEN} icon="fa-chart-line" />
+                <KPI label="Pro subscribers" value={T.proChurches} sub={`of ${T.churches} churches`} color={PURPLE} icon="fa-crown" change={T.proChurches} />
+                <KPI label="Conversion rate" value={`${T.conversionRate}%`} sub="Free → Pro" color={ACCENT} icon="fa-arrow-trend-up" />
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* Filters + search */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search churches…"
-            style={{ flex: 1, minWidth: 200, padding: '10px 14px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.875rem', fontFamily: 'inherit', outline: 'none', background: '#fff' }} />
-          {['all', 'active', 'inactive'].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              style={{ padding: '9px 16px', border: `1.5px solid ${filter === f ? NAV : '#dde3f0'}`, borderRadius: 10, background: filter === f ? NAV : '#fff', color: filter === f ? '#fff' : '#64748b', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize' }}>
-              {f === 'all' ? `All (${data.churches.length})` : f === 'active' ? `Active (${data.churches.filter(c => c.isActive).length})` : `Inactive (${data.churches.filter(c => !c.isActive).length})`}
-            </button>
-          ))}
-        </div>
+            {/* Usage row */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Usage</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                <KPI label="Total churches" value={T.churches} sub={`${T.activeChurches} active (30d)`} color={ACCENT} icon="fa-church" change={T.newChurchesThisWeek > 0 ? `+${T.newChurchesThisWeek} this week` : undefined} />
+                <KPI label="New this month" value={T.newChurchesThisMonth} sub="new signups" color="#0ea5e9" icon="fa-user-plus" />
+                <KPI label="Total members" value={T.totalMembers.toLocaleString()} sub="across all churches" color={GOLD} icon="fa-users" />
+                <KPI label="Sign-ins this week" value={T.signInsThisWeek.toLocaleString()} sub="last 7 days" color="#0891b2" icon="fa-clipboard-check" />
+                <KPI label="Sign-ins this month" value={T.signInsThisMonth.toLocaleString()} sub="calendar month" color={ACCENT} icon="fa-calendar" />
+                <KPI label="All-time sign-ins" value={T.totalSignIns.toLocaleString()} sub="platform total" color="#64748b" icon="fa-database" />
+                <KPI label="First timers" value={(T.totalFirstTimers || 0).toLocaleString()} sub="all churches" color={RED} icon="fa-hand-wave" />
+                <KPI label="Events created" value={(T.totalEvents || 0).toLocaleString()} sub="all churches" color="#d97706" icon="fa-calendar-days" />
+              </div>
+            </div>
 
-        {/* Table */}
-        <div style={{ background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 16, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={th} onClick={() => toggleSort('name')}>Church {sort === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th}>Contact</th>
-                  <th style={th} onClick={() => toggleSort('createdAt')}>Registered {sort === 'createdAt' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th} onClick={() => toggleSort('lastActivity')}>Last Active {sort === 'lastActivity' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th} onClick={() => toggleSort('memberCount')}>Members {sort === 'memberCount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th} onClick={() => toggleSort('signInsThisWeek')}>Week {sort === 'signInsThisWeek' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th} onClick={() => toggleSort('signInsThisMonth')}>Month {sort === 'signInsThisMonth' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th} onClick={() => toggleSort('totalSignIns')}>Total {sort === 'totalSignIns' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={{...th, borderLeft: '2px solid #e2e8f0'}} onClick={() => toggleSort('firstTimerCount')}>1st Timers {sort === 'firstTimerCount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th} onClick={() => toggleSort('eventCount')}>Events {sort === 'eventCount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th} onClick={() => toggleSort('rsvpCount')}>RSVPs {sort === 'rsvpCount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                  <th style={th}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr><td colSpan={12} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>No churches match.</td></tr>
-                ) : rows.map(c => (
-                  <tr key={c.id} style={{ transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.background='#f8fafc'} onMouseLeave={e => e.currentTarget.style.background=''}>
-                    <td style={td({ fontWeight: 700 })}>
-                      <div style={{ color: NAV }}>{c.name}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 400 }}>/{c.slug}{c.denomination ? ` · ${c.denomination}` : ''}</div>
-                    </td>
-                    <td style={td()}>
-                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{c.adminEmail}</div>
-                    </td>
-                    <td style={td()}>{relativeTime(c.createdAt)}</td>
-                    <td style={td({ fontWeight: c.lastActivity ? 600 : 400 })}>{relativeTime(c.lastActivity)}</td>
-                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right' })}>{c.memberCount}</td>
-                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', fontWeight: c.signInsThisWeek > 0 ? 700 : 400, color: c.signInsThisWeek > 0 ? NAV : '#94a3b8' })}>{c.signInsThisWeek || '—'}</td>
-                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', fontWeight: c.signInsThisMonth > 0 ? 700 : 400, color: c.signInsThisMonth > 0 ? '#7c3aed' : '#94a3b8' })}>{c.signInsThisMonth || '—'}</td>
-                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right' })}>{c.totalSignIns.toLocaleString()}</td>
-                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', borderLeft: '2px solid #f1f5f9', fontWeight: c.firstTimerCount > 0 ? 700 : 400, color: c.firstTimerCount > 0 ? '#e11d48' : '#94a3b8' })}>{c.firstTimerCount || '—'}</td>
-                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', fontWeight: c.eventCount > 0 ? 700 : 400, color: c.eventCount > 0 ? '#d97706' : '#94a3b8' })}>{c.eventCount || '—'}</td>
-                    <td style={td({ fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: c.rsvpCount > 0 ? '#0891b2' : '#94a3b8' })}>{c.rsvpCount || '—'}</td>
-                    <td style={td()}>
-                      <span style={{ background: c.isActive ? '#f0fdf4' : '#fef2f2', color: c.isActive ? '#16a34a' : '#dc2626', borderRadius: 20, padding: '4px 11px', fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.03em' }}>
-                        {c.isActive ? '● Active' : '● Inactive'}
-                      </span>
-                    </td>
-                  </tr>
+            {/* Charts + Funnel row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 340px', gap: 16, marginBottom: 20 }}>
+
+              {/* Monthly signups */}
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '20px' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>New signups — last 6 months</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 80 }}>
+                  {(monthlySignups || []).map((m, i) => (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <div style={{ fontSize: '0.68rem', color: ACCENT, fontWeight: 800 }}>{m.signups || ''}</div>
+                      <div style={{ width: '100%', background: i === monthlySignups.length - 1 ? ACCENT : '#c7d2fe', borderRadius: '4px 4px 0 0', height: `${Math.max(3, (m.signups / maxSignups) * 56)}px` }} />
+                      <div style={{ fontSize: '0.6rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Monthly sign-ins */}
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '20px' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>Platform sign-ins — last 6 months</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 80 }}>
+                  {(monthlySignups || []).map((m, i) => (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <div style={{ fontSize: '0.68rem', color: '#0891b2', fontWeight: 800 }}>{m.signIns || ''}</div>
+                      <div style={{ width: '100%', background: i === monthlySignups.length - 1 ? '#0891b2' : '#bae6fd', borderRadius: '4px 4px 0 0', height: `${Math.max(3, (m.signIns / maxSignIns) * 56)}px` }} />
+                      <div style={{ fontSize: '0.6rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Plan breakdown */}
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '20px' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>Plan breakdown</div>
+                {[
+                  { label: 'Free', count: T.freeChurches, color: '#e2e8f0', textColor: '#64748b' },
+                  { label: 'Pro', count: T.proChurches, color: PURPLE, textColor: PURPLE },
+                ].map(({ label, count, color, textColor }) => (
+                  <div key={label} style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: textColor }}>{label}</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: NAV }}>{count} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({T.churches > 0 ? Math.round(count / T.churches * 100) : 0}%)</span></span>
+                    </div>
+                    <div style={{ background: '#f1f5f9', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                      <div style={{ background: color, width: T.churches > 0 ? `${count / T.churches * 100}%` : '0%', height: '100%', borderRadius: 4 }} />
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginBottom: 2 }}>Est. MRR from Pro</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: GREEN }}>{fmt£(T.mrr)}</div>
+                </div>
+              </div>
+            </div>
 
-        <div style={{ marginTop: 16, fontSize: '0.72rem', color: '#94a3b8', textAlign: 'right' }}>
-          Active = at least one sign-in in the last 30 days. Data refreshes on page load.
-        </div>
+            {/* Activation funnel */}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '20px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Activation funnel</div>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>% of {T.churches} total churches</span>
+              </div>
+              <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: 14 }}>Drop-off points show where churches stop engaging after signup.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0 32px' }}>
+                {(funnel || []).map((f, i) => (
+                  <StageBar key={f.stage} {...f} total={T.churches} i={i} />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── CHURCHES TABLE ── */}
+        {view === 'churches' && (
+          <>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search church, slug, email…"
+                style={{ flex: 1, minWidth: 220, padding: '9px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: '0.875rem', fontFamily: 'inherit', outline: 'none', background: '#fff' }} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['all', `All (${churches.length})`], ['active', `Active (${churches.filter(c => c.isActive).length})`], ['inactive', `Inactive (${churches.filter(c => !c.isActive).length})`]].map(([f, label]) => (
+                  <button key={f} onClick={() => setFilter(f)}
+                    style={{ padding: '7px 14px', border: `1px solid ${filter === f ? ACCENT : '#e2e8f0'}`, borderRadius: 10, background: filter === f ? ACCENT : '#fff', color: filter === f ? '#fff' : '#64748b', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['all', 'All plans'], ['pro', 'Pro only'], ['free', 'Free only']].map(([f, label]) => (
+                  <button key={f} onClick={() => setPlanFilter(f)}
+                    style={{ padding: '7px 14px', border: `1px solid ${planFilter === f ? PURPLE : '#e2e8f0'}`, borderRadius: 10, background: planFilter === f ? PURPLE : '#fff', color: planFilter === f ? '#fff' : '#64748b', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <TH col="name">Church</TH>
+                      <TH>Plan</TH>
+                      <TH col="createdAt">Registered</TH>
+                      <TH col="lastActivity">Last active</TH>
+                      <TH col="memberCount" right>Members</TH>
+                      <TH col="signInsThisWeek" right>Week</TH>
+                      <TH col="signInsThisMonth" right>Month</TH>
+                      <TH col="totalSignIns" right>Total</TH>
+                      <TH col="firstTimerCount" right>1st timers</TH>
+                      <TH col="activationStage" right>Stage</TH>
+                      <TH>Features used</TH>
+                      <TH>Status</TH>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.length === 0 ? (
+                      <tr><td colSpan={12} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No churches match.</td></tr>
+                    ) : rows.map(c => (
+                      <tr key={c.id}
+                        onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                        onMouseLeave={e => e.currentTarget.style.background = ''}>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9' }}>
+                          <div style={{ fontWeight: 700, color: NAV, fontSize: '0.875rem' }}>{c.name}</div>
+                          <div style={{ fontSize: '0.68rem', color: '#94a3b8', fontFamily: 'monospace' }}>/{c.slug}</div>
+                          <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{c.adminEmail}</div>
+                        </td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9' }}><PlanChip plan={c.plan} /></td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', color: '#64748b', whiteSpace: 'nowrap' }}>{relativeTime(c.createdAt)}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', fontWeight: c.lastActivity ? 600 : 400, color: c.lastActivity ? NAV : '#94a3b8', whiteSpace: 'nowrap' }}>{relativeTime(c.lastActivity)}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontSize: '0.875rem', fontWeight: 700, color: c.memberCount > 0 ? NAV : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{c.memberCount || '—'}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontSize: '0.875rem', fontWeight: 700, color: c.signInsThisWeek > 0 ? ACCENT : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{c.signInsThisWeek || '—'}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontSize: '0.875rem', fontWeight: 700, color: c.signInsThisMonth > 0 ? '#0891b2' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{c.signInsThisMonth || '—'}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontSize: '0.875rem', fontVariantNumeric: 'tabular-nums', color: '#475569' }}>{c.totalSignIns.toLocaleString()}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontSize: '0.875rem', fontWeight: c.firstTimerCount > 0 ? 700 : 400, color: c.firstTimerCount > 0 ? RED : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{c.firstTimerCount || '—'}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>
+                          <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: 20 }}>
+                            {c.activationStage}/5
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9' }}>
+                          <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                            {[
+                              [c.hasMembers, 'Members'],
+                              [c.hasEvents, 'Events'],
+                              [c.hasAttendance, 'Attendance'],
+                              [c.hasFirstTimers, 'First timers'],
+                              [c.hasGiving, 'Giving'],
+                            ].map(([has, label]) => (
+                              <span key={label} title={label} style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: has ? GREEN : '#e2e8f0', flexShrink: 0 }} />
+                            ))}
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap' }}>
+                          <span style={{ background: c.isActive ? '#f0fdf4' : '#fef2f2', color: c.isActive ? '#16a34a' : '#dc2626', borderRadius: 20, padding: '3px 10px', fontSize: '0.68rem', fontWeight: 800 }}>
+                            {c.isActive ? '● Active' : '● Inactive'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ padding: '10px 14px', borderTop: '1px solid #f1f5f9', fontSize: '0.72rem', color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
+                <span>{rows.length} of {churches.length} churches shown</span>
+                <span>Features: ● Members · ● Events · ● Attendance · ● First timers · ● Giving</span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
