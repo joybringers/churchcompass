@@ -30,14 +30,21 @@ export async function POST(req) {
     await supabase.from('cc_churches').update({ stripe_customer_id: customerId }).eq('id', church.id);
   }
 
+  const { billing } = await req.json().catch(() => ({}));
+  const isAnnual = billing === 'annual';
+  const priceId = isAnnual ? (process.env.STRIPE_PRICE_ID_PRO_ANNUAL || process.env.STRIPE_PRICE_ID_PRO) : process.env.STRIPE_PRICE_ID_PRO;
+
+  const subscriptionData = { metadata: { churchId: church.id } };
+  if (!isAnnual) subscriptionData.trial_period_days = 14;
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'subscription',
-    line_items: [{ price: process.env.STRIPE_PRICE_ID_PRO, quantity: 1 }],
+    line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${origin}/${church.slug}/admin/settings?upgraded=1`,
     cancel_url: `${origin}/${church.slug}/admin/settings`,
     metadata: { churchId: church.id },
-    subscription_data: { metadata: { churchId: church.id }, trial_period_days: 14 },
+    subscription_data: subscriptionData,
   });
 
   return NextResponse.json({ url: session.url });

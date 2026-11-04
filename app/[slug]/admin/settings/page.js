@@ -1,382 +1,390 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCC } from '../layout';
-import { useParams } from 'next/navigation';
 
 const NAV = '#1e3a5f';
 const GOLD = '#f59e0b';
 
-import { useSearchParams } from 'next/navigation';
+function Badge({ plan }) {
+  const isPro = plan === 'pro' || plan === 'custom';
+  return (
+    <span style={{ background: isPro ? 'rgba(245,158,11,0.15)' : '#f1f5f9', color: isPro ? GOLD : '#64748b', fontSize: '0.72rem', fontWeight: 800, padding: '3px 10px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.06em', border: isPro ? '1px solid rgba(245,158,11,0.3)' : '1px solid #e2e8f0' }}>
+      {plan === 'custom' ? 'Custom' : isPro ? 'Pro' : 'Free'}
+    </span>
+  );
+}
 
-const BLANK_FIELD = { formType: 'first_timer', fieldLabel: '', fieldName: '', fieldType: 'text', fieldOptions: '', isRequired: false };
+function RoleChip({ role }) {
+  const isOwner = role === 'owner';
+  return (
+    <span style={{ background: isOwner ? 'rgba(30,58,95,0.1)' : '#f1f5f9', color: isOwner ? NAV : '#64748b', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' }}>
+      {role}
+    </span>
+  );
+}
 
 export default function Settings() {
   const ctx = useCC();
-  const { slug } = useParams();
-  const [churchForm, setChurchForm] = useState(null);
-  const [qrSignin, setQrSignin] = useState('');
-  const [qrChildren, setQrChildren] = useState('');
-  const [qrCheckin, setQrCheckin] = useState('');
-  const searchParams = useSearchParams();
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [billingLoading, setBillingLoading] = useState(false);
-  const [upgradedBanner, setUpgradedBanner] = useState(searchParams?.get('upgraded') === '1');
-  const [customFields, setCustomFields] = useState([]);
-  const [fieldModal, setFieldModal] = useState(null);
-  const [fieldForm, setFieldForm] = useState(BLANK_FIELD);
-  const [fieldSaving, setFieldSaving] = useState(false);
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [teamLoading, setTeamLoading] = useState(false);
-  const [addAdminForm, setAddAdminForm] = useState({ name: '', email: '', password: '' });
-  const [addAdminError, setAddAdminError] = useState('');
-  const [addAdminSaving, setAddAdminSaving] = useState(false);
-  const [showAddAdmin, setShowAddAdmin] = useState(false);
-  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
-  const [pwSaving, setPwSaving] = useState(false);
+  const router = useRouter();
+
+  const [tab, setTab] = useState('profile');
+  const [saved, setSaved] = useState('');
+
+  // Profile
+  const [profile, setProfile] = useState({ name: '', denomination: '', address: '', phone: '', website: '' });
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  // Team
+  const [admins, setAdmins] = useState([]);
+  const [addModal, setAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', email: '', password: '' });
+  const [addError, setAddError] = useState('');
+  const [addSaving, setAddSaving] = useState(false);
+
+  // Password
+  const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
   const [pwError, setPwError] = useState('');
-  const [pwSaved, setPwSaved] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
 
-  const loadTeam = async () => {
-    if (!ctx) return;
-    setTeamLoading(true);
-    const { church, token } = ctx;
-    const res = await fetch(`/api/admin-users?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
-    const data = await res.json();
-    setTeamMembers(data.admins || []);
-    setTeamLoading(false);
-  };
+  // Billing
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState('');
 
-  const load = () => {
-    if (!ctx) return;
-    const { church, token } = ctx;
-    setChurchForm({ name: church.name, denomination: church.denomination || '', address: church.address || '', phone: church.phone || '', website: church.website || '', primaryColor: church.primary_color || NAV });
-    fetch(`/api/custom-fields?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setCustomFields(d.fields || []));
-    loadTeam();
-  };
-
-  useEffect(() => { load(); }, [ctx]);
+  const { church, token, slug, admin } = ctx || {};
+  const isPro = church?.plan === 'pro' || church?.plan === 'custom';
 
   useEffect(() => {
-    if (!slug) return;
-    const base = 'https://churchcompass.elmorilx.com';
-    import('qrcode').then(QRCode => {
-      QRCode.default.toDataURL(`${base}/${slug}/signin`, { width: 220, margin: 1 }).then(setQrSignin);
-      QRCode.default.toDataURL(`${base}/${slug}/children-checkin`, { width: 220, margin: 1 }).then(setQrChildren);
-      QRCode.default.toDataURL(`${base}/${slug}/checkin`, { width: 220, margin: 1 }).then(setQrCheckin);
-    });
-  }, [slug]);
+    if (!ctx) return;
+    setProfile({ name: church.name || '', denomination: church.denomination || '', address: church.address || '', phone: church.phone || '', website: church.website || '' });
+    loadAdmins();
+    // Check for Stripe success redirect
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('upgraded') === '1') {
+      setSaved('plan_upgraded');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [ctx]);
 
-  const set = (k, v) => setChurchForm(f => ({ ...f, [k]: v }));
-  const setFF = (k, v) => setFieldForm(f => ({ ...f, [k]: v }));
+  const loadAdmins = async () => {
+    if (!ctx) return;
+    const res = await fetch(`/api/admin-users?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.admins) setAdmins(data.admins);
+  };
 
-  const saveChurch = async (e) => {
+  const saveProfile = async (e) => {
     e.preventDefault();
-    setSaving(true);
-    const { church, token } = ctx;
-    await fetch('/api/churches', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ id: church.id, ...churchForm }) });
-    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500);
-  };
-
-  const openAddField = () => { setFieldForm({ ...BLANK_FIELD, fieldName: '' }); setFieldModal('add'); };
-  const openEditField = (f) => {
-    setFieldForm({ formType: f.form_type, fieldLabel: f.field_label, fieldName: f.field_name, fieldType: f.field_type, fieldOptions: (f.field_options || []).join('\n'), isRequired: f.is_required });
-    setFieldModal(f);
-  };
-
-  const saveField = async () => {
-    setFieldSaving(true);
-    const { church, token } = ctx;
-    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-    const opts = fieldForm.fieldOptions.split('\n').map(s => s.trim()).filter(Boolean);
-    const body = { churchId: church.id, formType: fieldForm.formType, fieldLabel: fieldForm.fieldLabel, fieldName: fieldForm.fieldName || fieldForm.fieldLabel.toLowerCase().replace(/\s+/g, '_'), fieldType: fieldForm.fieldType, fieldOptions: opts.length ? opts : null, isRequired: fieldForm.isRequired };
-    if (fieldModal === 'add') await fetch('/api/custom-fields', { method: 'POST', headers: h, body: JSON.stringify(body) });
-    else await fetch('/api/custom-fields', { method: 'PUT', headers: h, body: JSON.stringify({ ...body, id: fieldModal.id }) });
-    setFieldSaving(false); setFieldModal(null); load();
-  };
-
-  const deleteField = async (id) => {
-    if (!confirm('Delete this field?')) return;
-    await fetch(`/api/custom-fields?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${ctx.token}` } });
-    load();
+    setProfileSaving(true);
+    const res = await fetch('/api/churches', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ id: church.id, ...profile }) });
+    setProfileSaving(false);
+    if (res.ok) setSaved('profile');
+    setTimeout(() => setSaved(''), 3000);
   };
 
   const addAdmin = async (e) => {
     e.preventDefault();
-    setAddAdminSaving(true); setAddAdminError('');
-    const { church, token } = ctx;
-    const res = await fetch('/api/admin-users', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ churchId: church.id, ...addAdminForm }) });
+    setAddError(''); setAddSaving(true);
+    const res = await fetch('/api/admin-users', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ churchId: church.id, ...addForm }) });
     const data = await res.json();
-    if (!res.ok) { setAddAdminError(data.error || 'Failed to add admin.'); setAddAdminSaving(false); return; }
-    setAddAdminForm({ name: '', email: '', password: '' }); setShowAddAdmin(false); setAddAdminSaving(false);
-    loadTeam();
+    setAddSaving(false);
+    if (!res.ok) { setAddError(data.error || 'Failed to add admin.'); return; }
+    setAddModal(false);
+    setAddForm({ name: '', email: '', password: '' });
+    loadAdmins();
+    setSaved('admin_added');
+    setTimeout(() => setSaved(''), 3000);
   };
 
-  const removeAdmin = async (id, name) => {
-    if (!confirm(`Remove ${name} from admin team?`)) return;
-    await fetch(`/api/admin-users?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${ctx.token}` } });
-    loadTeam();
-  };
-
-  const startCheckout = async () => {
-    setBillingLoading(true);
-    const res = await fetch('/api/stripe/checkout', { method: 'POST', headers: { 'Authorization': `Bearer ${ctx.token}` } });
-    const data = await res.json();
-    if (data.url) window.location.href = data.url;
-    else { alert(data.error || 'Could not start checkout.'); setBillingLoading(false); }
-  };
-
-  const openPortal = async () => {
-    setBillingLoading(true);
-    const res = await fetch('/api/stripe/portal', { method: 'POST', headers: { 'Authorization': `Bearer ${ctx.token}` } });
-    const data = await res.json();
-    if (data.url) window.location.href = data.url;
-    else { alert(data.error || 'Could not open billing portal.'); setBillingLoading(false); }
+  const removeAdmin = async (id) => {
+    if (!confirm('Remove this admin? They will lose access immediately.')) return;
+    await fetch(`/api/admin-users?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+    loadAdmins();
   };
 
   const changePassword = async (e) => {
     e.preventDefault();
-    setPwError(''); setPwSaved(false);
-    if (pwForm.next !== pwForm.confirm) { setPwError('New passwords do not match.'); return; }
-    if (pwForm.next.length < 8) { setPwError('Password must be at least 8 characters.'); return; }
-    setPwSaving(true);
-    const res = await fetch('/api/admin-users', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ctx.token}` }, body: JSON.stringify({ action: 'change_password', currentPassword: pwForm.current, newPassword: pwForm.next }) });
+    if (pwForm.newPw !== pwForm.confirm) { setPwError('Passwords do not match.'); return; }
+    if (pwForm.newPw.length < 8) { setPwError('Password must be at least 8 characters.'); return; }
+    setPwError(''); setPwSaving(true);
+    const res = await fetch('/api/admin-users', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ action: 'change_password', currentPassword: pwForm.current, newPassword: pwForm.newPw }) });
     const data = await res.json();
-    if (!res.ok) { setPwError(data.error || 'Failed to change password.'); setPwSaving(false); return; }
-    setPwForm({ current: '', next: '', confirm: '' }); setPwSaving(false); setPwSaved(true);
-    setTimeout(() => setPwSaved(false), 3000);
+    setPwSaving(false);
+    if (!res.ok) { setPwError(data.error || 'Failed to change password.'); return; }
+    setPwForm({ current: '', newPw: '', confirm: '' });
+    setSaved('password');
+    setTimeout(() => setSaved(''), 3000);
   };
 
-  const inp = { padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.95rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
-  const lbl = { fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 3 };
+  const openBillingPortal = async () => {
+    setBillingLoading(true);
+    const res = await fetch('/api/stripe/portal', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+    const data = await res.json();
+    setBillingLoading(false);
+    if (data.url) window.location.href = data.url;
+  };
 
-  if (!ctx || !churchForm) return null;
+  const startCheckout = async (billing) => {
+    setUpgradeLoading(billing);
+    const res = await fetch('/api/stripe/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ churchId: church.id, billing }) });
+    const data = await res.json();
+    setUpgradeLoading('');
+    if (data.url) window.location.href = data.url;
+  };
+
+  if (!ctx) return null;
+
+  const inp = { padding: '10px 12px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '0.9rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
+  const lbl = { fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 };
+  const tabBtn = (id, label, icon) => (
+    <button onClick={() => setTab(id)}
+      style={{ padding: '9px 18px', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', background: tab === id ? NAV : '#f1f5f9', color: tab === id ? '#fff' : '#475569', fontFamily: 'inherit' }}>
+      <i className={`fas ${icon}`} style={{ marginRight: 6 }} />{label}
+    </button>
+  );
 
   return (
-    <div style={{ padding: '32px 28px', maxWidth: 700 }}>
-      <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV, marginBottom: 28 }}>Settings</h1>
-
-      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 28 }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>Church info</h2>
-        <form onSubmit={saveChurch} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div><label style={lbl}>Church name *</label><input style={inp} value={churchForm.name} onChange={e => set('name', e.target.value)} required /></div>
-          <div><label style={lbl}>Denomination</label><input style={inp} value={churchForm.denomination} onChange={e => set('denomination', e.target.value)} /></div>
-          <div><label style={lbl}>Address</label><input style={inp} value={churchForm.address} onChange={e => set('address', e.target.value)} /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div><label style={lbl}>Phone</label><input style={inp} value={churchForm.phone} onChange={e => set('phone', e.target.value)} /></div>
-            <div><label style={lbl}>Website</label><input style={inp} value={churchForm.website} onChange={e => set('website', e.target.value)} /></div>
-          </div>
-          <div>
-            <label style={lbl}>Brand color</label>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input type="color" value={churchForm.primaryColor} onChange={e => set('primaryColor', e.target.value)} style={{ width: 40, height: 40, border: 'none', borderRadius: 8, cursor: 'pointer', padding: 2 }} />
-              <input style={{ ...inp, flex: 1 }} value={churchForm.primaryColor} onChange={e => set('primaryColor', e.target.value)} placeholder="#1e3a5f" />
-            </div>
-          </div>
-          <button type="submit" disabled={saving}
-            style={{ background: saved ? '#22c55e' : saving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Changes'}
-          </button>
-        </form>
+    <div style={{ padding: '32px 28px', maxWidth: 760 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: NAV, marginBottom: 2 }}>
+          <i className="fas fa-gear" style={{ marginRight: 8, color: GOLD }} />Settings
+        </h1>
+        <p style={{ color: '#64748b', fontSize: '0.85rem' }}>Manage your church details, team, and subscription.</p>
       </div>
 
-      {/* PLAN & BILLING */}
-      {upgradedBanner && (
-        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 12, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <i className="fas fa-circle-check" style={{ color: '#16a34a', fontSize: 18 }} />
-          <span style={{ color: '#166534', fontWeight: 600, fontSize: '0.9rem' }}>Welcome to Pro! All features are now unlocked.</span>
-          <button onClick={() => setUpgradedBanner(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>×</button>
+      {/* Toast */}
+      {saved && (
+        <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <i className="fas fa-circle-check" style={{ color: '#16a34a', fontSize: 15 }} />
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#166534' }}>
+            {saved === 'profile' ? 'Church profile saved.' : saved === 'admin_added' ? 'Admin added — they\'ve been sent their login details by email.' : saved === 'password' ? 'Password changed successfully.' : saved === 'plan_upgraded' ? 'Your plan has been upgraded to Pro!' : 'Saved.'}
+          </span>
         </div>
       )}
-      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 28 }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>Plan & Billing</h2>
-        {(() => {
-          const plan = ctx.church?.plan || 'free';
-          const isPro = plan === 'pro' || plan === 'custom';
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 28 }}>
+        {tabBtn('profile', 'Church Profile', 'fa-church')}
+        {tabBtn('team', 'Team', 'fa-users')}
+        {tabBtn('billing', 'Plan & Billing', 'fa-credit-card')}
+        {tabBtn('security', 'Security', 'fa-lock')}
+      </div>
+
+      {/* ── PROFILE ── */}
+      {tab === 'profile' && (
+        <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+          <form onSubmit={saveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={lbl}>Church name</label>
+              <input style={inp} value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} required />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                  <span style={{ background: isPro ? '#fef3c7' : '#f1f5f9', color: isPro ? '#b45309' : '#475569', fontWeight: 800, fontSize: '0.8rem', padding: '3px 12px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {plan === 'custom' ? 'Custom' : isPro ? 'Pro' : 'Free'}
-                  </span>
-                  {!isPro && <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>100 member limit · basic features</span>}
-                  {isPro && <span style={{ fontSize: '0.8rem', color: '#16a34a' }}>Unlimited members · all features unlocked</span>}
-                </div>
-                {!isPro && (
-                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
-                    Upgrade to Pro for £9/month to unlock unlimited members, CSV export, custom fields and more.
-                  </p>
-                )}
+                <label style={lbl}>Denomination</label>
+                <input style={inp} value={profile.denomination} onChange={e => setProfile(p => ({ ...p, denomination: e.target.value }))} placeholder="e.g. Baptist" />
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {!isPro && (
-                  <button onClick={startCheckout} disabled={billingLoading}
-                    style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: billingLoading ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
-                    {billingLoading ? 'Loading…' : 'Upgrade to Pro →'}
-                  </button>
-                )}
-                {isPro && ctx.church?.stripe_customer_id && plan !== 'custom' && (
-                  <button onClick={openPortal} disabled={billingLoading}
-                    style={{ background: '#f1f5f9', color: NAV, border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: billingLoading ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
-                    {billingLoading ? 'Loading…' : 'Manage billing'}
-                  </button>
-                )}
-                <a href="/pricing" target="_blank" style={{ background: '#f8fafc', color: '#64748b', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '10px 16px', fontWeight: 600, fontSize: '0.8rem', textDecoration: 'none' }}>
-                  View plans
-                </a>
+              <div>
+                <label style={lbl}>Phone</label>
+                <input style={inp} value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} />
               </div>
             </div>
-          );
-        })()}
-      </div>
-
-      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV }}>QR Codes</h2>
-          <button onClick={() => window.print()} style={{ background: '#f1f5f9', color: NAV, border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '7px 14px', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem' }}>
-            <i className="fas fa-print" style={{ marginRight: 6 }} />Print QR Codes
-          </button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 24 }}>
-          {[
-            { label: 'Sign-In Kiosk', url: `https://churchcompass.elmorilx.com/${slug}/signin`, qr: qrSignin },
-            { label: 'Children Check-In', url: `https://churchcompass.elmorilx.com/${slug}/children-checkin`, qr: qrChildren },
-            { label: 'Event Check-In', url: `https://churchcompass.elmorilx.com/${slug}/checkin`, qr: qrCheckin },
-          ].map(({ label, url, qr }) => (
-            <div key={label} style={{ textAlign: 'center', background: '#f8fafc', borderRadius: 12, padding: '20px 16px' }}>
-              <div style={{ fontWeight: 700, color: NAV, marginBottom: 12, fontSize: '0.9rem' }}>{label}</div>
-              {qr ? <img src={qr} alt={label} style={{ width: 160, height: 160, borderRadius: 8, display: 'block', margin: '0 auto 12px' }} /> : <div style={{ width: 160, height: 160, background: '#e2e8f0', borderRadius: 8, margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>Generating…</div>}
-              <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: 12, wordBreak: 'break-all' }}>{url}</div>
-              {qr && <a href={qr} download={`${label.replace(/\s+/g,'-').toLowerCase()}-qr.png`} style={{ display: 'inline-block', background: NAV, color: '#fff', borderRadius: 8, padding: '7px 14px', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}>Download PNG</a>}
+            <div>
+              <label style={lbl}>Address</label>
+              <input style={inp} value={profile.address} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} />
             </div>
-          ))}
+            <div>
+              <label style={lbl}>Website</label>
+              <input style={inp} value={profile.website} onChange={e => setProfile(p => ({ ...p, website: e.target.value }))} placeholder="https://..." />
+            </div>
+            <div>
+              <label style={lbl}>Admin URL slug</label>
+              <div style={{ padding: '10px 12px', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: '0.875rem', color: '#64748b', fontFamily: 'monospace' }}>
+                churchcompass.elmorilx.com/{slug}/admin
+              </div>
+              <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 4 }}>URL slugs cannot be changed after registration.</p>
+            </div>
+            <button type="submit" disabled={profileSaving}
+              style={{ background: profileSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: profileSaving ? 'not-allowed' : 'pointer', alignSelf: 'flex-start', paddingLeft: 24, paddingRight: 24 }}>
+              {profileSaving ? 'Saving…' : 'Save changes'}
+            </button>
+          </form>
         </div>
-      </div>
+      )}
 
-      {/* TEAM */}
-      {ctx.admin?.role === 'owner' && (
-        <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginBottom: 28 }}>
+      {/* ── TEAM ── */}
+      {tab === 'team' && (
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div>
-              <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 2 }}>Team</h2>
-              <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Manage who can log in to the admin dashboard.</p>
+              <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                {admins.length} admin{admins.length !== 1 ? 's' : ''}
+                {!isPro && <span style={{ marginLeft: 6, color: '#d97706', fontWeight: 600 }}>· Free plan: up to 3</span>}
+              </span>
             </div>
-            <button onClick={() => { setShowAddAdmin(v => !v); setAddAdminError(''); }} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>
-              <i className="fas fa-plus" style={{ marginRight: 5 }} />{showAddAdmin ? 'Cancel' : 'Add admin'}
-            </button>
+            {admin?.role === 'owner' && (
+              <button onClick={() => { setAddModal(true); setAddError(''); setAddForm({ name: '', email: '', password: '' }); }}
+                style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer' }}>
+                <i className="fas fa-plus" style={{ marginRight: 6 }} />Add admin
+              </button>
+            )}
           </div>
 
-          {showAddAdmin && (
-            <form onSubmit={addAdmin} style={{ background: '#f8fafc', borderRadius: 12, padding: '16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div><label style={lbl}>Name *</label><input style={inp} value={addAdminForm.name} onChange={e => setAddAdminForm(f => ({ ...f, name: e.target.value }))} required placeholder="Jane Smith" /></div>
-                <div><label style={lbl}>Email *</label><input type="email" style={inp} value={addAdminForm.email} onChange={e => setAddAdminForm(f => ({ ...f, email: e.target.value }))} required placeholder="jane@church.org" /></div>
+          <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+            {admins.map((a, i) => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderBottom: i < admins.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                <div style={{ width: 38, height: 38, borderRadius: '50%', background: a.role === 'owner' ? NAV : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ color: a.role === 'owner' ? '#fff' : '#64748b', fontWeight: 800, fontSize: '0.85rem' }}>
+                    {a.name ? a.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?'}
+                  </span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{a.name}</span>
+                    <RoleChip role={a.role} />
+                    {a.id === ctx.admin?.adminId && <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600 }}>You</span>}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: 1 }}>{a.email}</div>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', flexShrink: 0, textAlign: 'right' }}>
+                  Added {new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+                {admin?.role === 'owner' && a.role !== 'owner' && (
+                  <button onClick={() => removeAdmin(a.id)}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, flexShrink: 0, marginLeft: 4 }}>
+                    Remove
+                  </button>
+                )}
               </div>
-              <div><label style={lbl}>Password *</label><input type="password" style={inp} value={addAdminForm.password} onChange={e => setAddAdminForm(f => ({ ...f, password: e.target.value }))} required placeholder="Min. 8 characters" minLength={8} /></div>
-              {addAdminError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', color: '#dc2626', fontSize: '0.82rem' }}>{addAdminError}</div>}
-              <button type="submit" disabled={addAdminSaving} style={{ background: addAdminSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, cursor: addAdminSaving ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
-                {addAdminSaving ? 'Adding…' : 'Add admin'}
-              </button>
-            </form>
-          )}
+            ))}
+          </div>
 
-          {teamLoading ? (
-            <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Loading…</p>
-          ) : teamMembers.map(m => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: m.role === 'owner' ? '#fef3c7' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <i className="fas fa-user" style={{ color: m.role === 'owner' ? '#b45309' : '#64748b', fontSize: 13 }} />
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>{m.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.email} · <span style={{ textTransform: 'capitalize', color: m.role === 'owner' ? '#b45309' : '#64748b' }}>{m.role}</span></div>
-                </div>
-              </div>
-              {m.role !== 'owner' && (
-                <button onClick={() => removeAdmin(m.id, m.name)} style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Remove</button>
-              )}
+          {!isPro && admins.length >= 3 && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '14px 18px', marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <i className="fas fa-triangle-exclamation" style={{ color: '#d97706', flexShrink: 0 }} />
+              <div style={{ fontSize: '0.85rem', color: '#92400e', flex: 1 }}>Free plan limit reached (3 admins). <strong>Upgrade to Pro</strong> for unlimited admin accounts.</div>
+              <button onClick={() => setTab('billing')} style={{ background: GOLD, color: NAV, border: 'none', borderRadius: 8, padding: '6px 14px', fontWeight: 800, fontSize: '0.78rem', cursor: 'pointer', flexShrink: 0 }}>
+                Upgrade →
+              </button>
             </div>
-          ))}
+          )}
         </div>
       )}
 
-      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 2 }}>Custom fields</h2>
-            <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Add extra fields to first-timer forms and member records.</p>
-          </div>
-          <button onClick={openAddField} style={{ background: NAV, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>
-            <i className="fas fa-plus" style={{ marginRight: 5 }} />Add field
-          </button>
-        </div>
-
-        {customFields.length === 0 ? (
-          <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>No custom fields yet.</p>
-        ) : customFields.map(cf => (
-          <div key={cf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
-            <div>
-              <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.875rem' }}>{cf.field_label}</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{cf.form_type} · {cf.field_type}{cf.is_required ? ' · required' : ''}</div>
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => openEditField(cf)} style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Edit</button>
-              <button onClick={() => deleteField(cf.id)} style={{ background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Delete</button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* CHANGE PASSWORD */}
-      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', marginTop: 28 }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 4 }}>Change your password</h2>
-        <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 20 }}>Update the password for your admin account.</p>
-        <form onSubmit={changePassword} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 400 }}>
-          <div><label style={lbl}>Current password</label><input type="password" style={inp} value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} required autoComplete="current-password" /></div>
-          <div><label style={lbl}>New password</label><input type="password" style={inp} value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} required minLength={8} autoComplete="new-password" /></div>
-          <div><label style={lbl}>Confirm new password</label><input type="password" style={inp} value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} required minLength={8} autoComplete="new-password" /></div>
-          {pwError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', color: '#dc2626', fontSize: '0.85rem' }}>{pwError}</div>}
-          <button type="submit" disabled={pwSaving}
-            style={{ background: pwSaved ? '#22c55e' : pwSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: pwSaving ? 'not-allowed' : 'pointer' }}>
-            {pwSaved ? '✓ Password changed' : pwSaving ? 'Saving…' : 'Change Password'}
-          </button>
-        </form>
-      </div>
-
-      {fieldModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', width: '100%', maxWidth: 440 }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 800, color: NAV, marginBottom: 20 }}>{fieldModal === 'add' ? 'Add custom field' : 'Edit custom field'}</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div><label style={lbl}>Form type</label>
-                <select style={inp} value={fieldForm.formType} onChange={e => setFF('formType', e.target.value)}>
-                  <option value="first_timer">First-timer form</option>
-                  <option value="member">Member profile</option>
-                </select>
+      {/* ── BILLING ── */}
+      {tab === 'billing' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Current plan */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: '24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 800, color: NAV, fontSize: '0.95rem', marginBottom: 6 }}>Current plan</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Badge plan={church.plan || 'free'} />
+                  {isPro && <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 600 }}><i className="fas fa-circle-check" style={{ marginRight: 4 }} />Active</span>}
+                </div>
               </div>
-              <div><label style={lbl}>Field label *</label><input style={inp} value={fieldForm.fieldLabel} onChange={e => setFF('fieldLabel', e.target.value)} placeholder="e.g. T-shirt size" /></div>
-              <div><label style={lbl}>Field type</label>
-                <select style={inp} value={fieldForm.fieldType} onChange={e => setFF('fieldType', e.target.value)}>
-                  {['text', 'number', 'email', 'tel', 'textarea', 'select', 'checkbox'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-                </select>
-              </div>
-              {fieldForm.fieldType === 'select' && (
-                <div><label style={lbl}>Options (one per line)</label><textarea rows={4} style={{ ...inp, resize: 'vertical' }} value={fieldForm.fieldOptions} onChange={e => setFF('fieldOptions', e.target.value)} placeholder={'Small\nMedium\nLarge'} /></div>
+              {isPro && (
+                <button onClick={openBillingPortal} disabled={billingLoading}
+                  style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: billingLoading ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
+                  <i className="fas fa-arrow-up-right-from-square" style={{ marginRight: 6 }} />
+                  {billingLoading ? 'Opening…' : 'Manage billing'}
+                </button>
               )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.875rem' }}>
-                <input type="checkbox" checked={fieldForm.isRequired} onChange={e => setFF('isRequired', e.target.checked)} />
-                Required field
-              </label>
             </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button onClick={() => setFieldModal(null)} style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={saveField} disabled={fieldSaving || !fieldForm.fieldLabel}
-                style={{ flex: 1, background: fieldSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 700, cursor: fieldSaving ? 'not-allowed' : 'pointer' }}>
-                {fieldSaving ? 'Saving…' : 'Save'}
-              </button>
+            {isPro && (
+              <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: 12 }}>
+                To cancel, change payment method, or download invoices — click <strong>Manage billing</strong> above.
+              </p>
+            )}
+          </div>
+
+          {/* Upgrade section (Free only) */}
+          {!isPro && (
+            <div style={{ background: NAV, borderRadius: 16, padding: '28px 24px', boxShadow: '0 4px 24px rgba(30,58,95,0.2)' }}>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ color: GOLD, fontWeight: 800, fontSize: '1rem', marginBottom: 4 }}>Upgrade to Pro</div>
+                <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.875rem' }}>Unlock unlimited members, admins, CSV export, Groups, Guard, Communications and more.</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <button onClick={() => startCheckout('monthly')} disabled={upgradeLoading}
+                  style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: upgradeLoading ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: GOLD }}>£9<span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>/month</span></div>
+                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>14-day free trial</div>
+                  <div style={{ marginTop: 10, background: GOLD, color: NAV, borderRadius: 8, padding: '8px 12px', textAlign: 'center', fontSize: '0.825rem', fontWeight: 800 }}>
+                    {upgradeLoading === 'monthly' ? 'Redirecting…' : 'Start free trial →'}
+                  </div>
+                </button>
+                <button onClick={() => startCheckout('annual')} disabled={upgradeLoading}
+                  style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: upgradeLoading ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'inherit', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: 10, right: 10, background: '#dcfce7', color: '#16a34a', fontSize: '0.6rem', fontWeight: 800, padding: '2px 6px', borderRadius: 20 }}>SAVE 17%</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: GOLD }}>£90<span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>/year</span></div>
+                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>£7.50/mo · 2 months free</div>
+                  <div style={{ marginTop: 10, background: 'rgba(255,255,255,0.15)', color: '#fff', borderRadius: 8, padding: '8px 12px', textAlign: 'center', fontSize: '0.825rem', fontWeight: 800 }}>
+                    {upgradeLoading === 'annual' ? 'Redirecting…' : 'Get annual →'}
+                  </div>
+                </button>
+              </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SECURITY ── */}
+      {tab === 'security' && (
+        <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontWeight: 800, color: NAV, marginBottom: 16 }}>Change password</div>
+          <form onSubmit={changePassword} style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
+            <div>
+              <label style={lbl}>Current password</label>
+              <input type="password" style={inp} value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} required />
+            </div>
+            <div>
+              <label style={lbl}>New password</label>
+              <input type="password" style={inp} value={pwForm.newPw} onChange={e => setPwForm(f => ({ ...f, newPw: e.target.value }))} required minLength={8} />
+            </div>
+            <div>
+              <label style={lbl}>Confirm new password</label>
+              <input type="password" style={inp} value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} required />
+            </div>
+            {pwError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', color: '#dc2626', fontSize: '0.85rem' }}>{pwError}</div>}
+            <button type="submit" disabled={pwSaving}
+              style={{ background: pwSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '12px 24px', fontWeight: 700, cursor: pwSaving ? 'not-allowed' : 'pointer', alignSelf: 'flex-start' }}>
+              {pwSaving ? 'Saving…' : 'Change password'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Add Admin Modal */}
+      {addModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontWeight: 800, color: NAV, fontSize: '1rem' }}>Add admin</div>
+              <button onClick={() => setAddModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <form onSubmit={addAdmin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={lbl}>Full name</label>
+                <input style={inp} value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} required placeholder="e.g. Sarah Johnson" />
+              </div>
+              <div>
+                <label style={lbl}>Email address</label>
+                <input type="email" style={inp} value={addForm.email} onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))} required />
+              </div>
+              <div>
+                <label style={lbl}>Temporary password</label>
+                <input type="text" style={inp} value={addForm.password} onChange={e => setAddForm(f => ({ ...f, password: e.target.value }))} required minLength={8} placeholder="Min. 8 characters" />
+                <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 3 }}>They'll receive this by email and can change it after first login.</p>
+              </div>
+              {addError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', color: '#dc2626', fontSize: '0.85rem' }}>{addError}</div>}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
+                <button type="button" onClick={() => setAddModal(false)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button type="submit" disabled={addSaving} style={{ background: addSaving ? '#94a3b8' : NAV, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: addSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  {addSaving ? 'Adding…' : 'Add admin'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

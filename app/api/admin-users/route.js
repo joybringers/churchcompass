@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { supabase } from '@/lib/supabase';
 import { adminFromRequest } from '@/lib/guard';
+import { sendEmail } from '@/lib/email';
 
 const FREE_ADMIN_LIMIT = 3;
 
@@ -48,6 +49,18 @@ export async function POST(req) {
     .insert({ church_id: churchId, name, email, role: 'admin', password_hash })
     .select('id, name, email, role, created_at').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Email the new admin their credentials (best-effort)
+  const { data: church } = await supabase.from('cc_churches').select('name, slug').eq('id', churchId).single();
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://churchcompass.elmorilx.com';
+  try {
+    await sendEmail({
+      to: email,
+      subject: `You've been added as an admin — ${church?.name || 'ChurchCompass'}`,
+      body: `Hi ${name},\n\nYou've been added as an admin for ${church?.name || 'your church'} on ChurchCompass.\n\nYour login details:\n  Email: ${email}\n  Password: ${password}\n\nSign in here:\n  ${baseUrl}/${church?.slug}/admin\n\nYou can change your password after signing in.\n\nThe ChurchCompass Team`,
+    });
+  } catch { /* ignore */ }
+
   return NextResponse.json(data);
 }
 
