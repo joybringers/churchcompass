@@ -79,7 +79,7 @@ function RegisterForm() {
               </div>
               <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.78rem', marginTop: 2 }}>
                 {isNigeria
-                  ? 'After creating your account you\'ll complete payment via Paystack.'
+                  ? 'After creating your account you\'ll complete payment via Flutterwave.'
                   : billing === 'annual'
                     ? 'After creating your account you\'ll set up annual payment on the next step.'
                     : 'After creating your account you\'ll add a card — no charge for 14 days.'}
@@ -133,7 +133,7 @@ function RegisterForm() {
             <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#94a3b8', marginTop: -8 }}>
               <i className="fas fa-lock" style={{ marginRight: 4 }} />
               {isNigeria
-                ? 'Secure payment via Paystack. Cancel anytime.'
+                ? 'Secure payment via Flutterwave. Cancel anytime.'
                 : billing === 'annual' ? 'Secure payment via Stripe. Cancel anytime.' : 'No charge until your 14-day trial ends. Cancel anytime.'}
             </p>
           )}

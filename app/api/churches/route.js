@@ -7,12 +7,12 @@ export async function GET(req) {
   const slug = searchParams.get('slug');
   const id = searchParams.get('id');
   if (slug) {
-    const { data, error } = await supabase.from('cc_churches').select('id, slug, name, denomination, logo_url, primary_color, address, phone, website, plan, stripe_customer_id, payment_provider, currency, paystack_customer_code, paystack_subscription_code').eq('slug', slug).single();
+    const { data, error } = await supabase.from('cc_churches').select('id, slug, name, denomination, logo_url, primary_color, address, phone, website, plan, stripe_customer_id, payment_provider, currency, flw_customer_id, flw_subscription_id').eq('slug', slug).single();
     if (error) return NextResponse.json({ church: null });
     return NextResponse.json({ church: data });
   }
   if (id) {
-    const { data } = await supabase.from('cc_churches').select('id, slug, name, denomination, logo_url, primary_color, address, phone, website, plan, stripe_customer_id, payment_provider, currency, paystack_customer_code, paystack_subscription_code').eq('id', id).single();
+    const { data } = await supabase.from('cc_churches').select('id, slug, name, denomination, logo_url, primary_color, address, phone, website, plan, stripe_customer_id, payment_provider, currency, flw_customer_id, flw_subscription_id').eq('id', id).single();
     return NextResponse.json({ church: data });
   }
   return NextResponse.json({ error: 'slug or id required' }, { status: 400 });

@@ -233,7 +233,7 @@ export default function Pricing() {
                     <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>/month</span>
                   </div>
                   <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 8 }}>For growing churches that need the full toolkit.</p>
-                  <div style={{ fontSize: '0.78rem', color: GOLD, fontWeight: 600, marginTop: 4 }}>Paid via Paystack · Cancel anytime</div>
+                  <div style={{ fontSize: '0.78rem', color: GOLD, fontWeight: 600, marginTop: 4 }}>Paid via Flutterwave · Cancel anytime</div>
                 </>
               )
             ) : isAnnual ? (
@@ -302,7 +302,7 @@ export default function Pricing() {
             {(isNigeria ? [
               { q: 'Do I need a card to start?', a: 'No. The Free plan is free forever — no card required. For Pro, you pay via Paystack (cards, bank transfers, USSD) after signup.' },
               { q: 'Can I upgrade at any time?', a: 'Yes. Upgrade from your admin settings and your data carries over instantly.' },
-              { q: 'How do I pay?', a: 'Pro subscriptions for Nigerian churches are billed in Naira (₦) via Paystack. We accept debit cards, bank transfers, and USSD.' },
+              { q: 'How do I pay?', a: 'Pro subscriptions for Nigerian churches are billed in Naira (₦) via Flutterwave. We accept debit cards, bank transfers, USSD, and mobile money.' },
               { q: "What's the difference between monthly and annual?", a: "Annual billing is ₦20,000/year — that's 2 months free compared to paying ₦2,000 each month. Payment is taken upfront." },
               { q: 'How do I cancel?', a: 'Email admin@elmorilx.com and we\'ll cancel your subscription within 24 hours.' },
               { q: 'What happens when I hit 100 members on Free?', a: "You can still use the system — you just won't be able to add more members until you upgrade to Pro." },
