@@ -85,21 +85,21 @@ export default function FirstTimer() {
 
             {customFields.map(cf => (
               <div key={cf.id}>
-                <label style={lbl}>{cf.field_label}{cf.is_required && <span style={{ color: '#dc2626' }}> *</span>}</label>
+                <label style={lbl}>{cf.label}{cf.required && <span style={{ color: '#dc2626' }}> *</span>}</label>
                 {cf.field_type === 'textarea' ? (
-                  <textarea rows={3} style={{ ...inp, resize: 'vertical' }} value={customValues[cf.id] || ''} onChange={e => setCV(cf.id, e.target.value)} required={cf.is_required} />
-                ) : cf.field_type === 'select' ? (
-                  <select style={{ ...inp }} value={customValues[cf.id] || ''} onChange={e => setCV(cf.id, e.target.value)} required={cf.is_required}>
+                  <textarea rows={3} style={{ ...inp, resize: 'vertical' }} value={customValues[cf.id] || ''} onChange={e => setCV(cf.id, e.target.value)} required={cf.required} />
+                ) : cf.field_type === 'dropdown' ? (
+                  <select style={{ ...inp }} value={customValues[cf.id] || ''} onChange={e => setCV(cf.id, e.target.value)} required={cf.required}>
                     <option value="">Select…</option>
-                    {(cf.field_options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                    {(cf.options || []).map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
                 ) : cf.field_type === 'checkbox' ? (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                     <input type="checkbox" checked={!!customValues[cf.id]} onChange={e => setCV(cf.id, e.target.checked)} />
-                    <span style={{ fontSize: '0.9rem', color: '#374151' }}>{cf.field_label}</span>
+                    <span style={{ fontSize: '0.9rem', color: '#374151' }}>{cf.label}</span>
                   </label>
                 ) : (
-                  <input style={inp} type={cf.field_type === 'number' ? 'number' : 'text'} value={customValues[cf.id] || ''} onChange={e => setCV(cf.id, e.target.value)} required={cf.is_required} />
+                  <input style={inp} type={cf.field_type === 'number' ? 'number' : cf.field_type === 'date' ? 'date' : 'text'} value={customValues[cf.id] || ''} onChange={e => setCV(cf.id, e.target.value)} required={cf.required} />
                 )}
               </div>
             ))}

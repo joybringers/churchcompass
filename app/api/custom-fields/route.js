@@ -11,14 +11,12 @@ async function auth(req) {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const churchId = searchParams.get('churchId');
+  const formType = searchParams.get('formType');
   if (!churchId) return NextResponse.json({ error: 'churchId required' }, { status: 400 });
 
-  const { data, error } = await supabase
-    .from('cc_custom_fields')
-    .select('*')
-    .eq('church_id', churchId)
-    .order('form_type')
-    .order('sort_order');
+  let query = supabase.from('cc_custom_fields').select('*').eq('church_id', churchId);
+  if (formType) query = query.eq('form_type', formType);
+  const { data, error } = await query.order('form_type').order('sort_order');
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ fields: data || [] });
