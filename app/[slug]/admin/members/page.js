@@ -48,6 +48,7 @@ export default function Members() {
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvResult, setCsvResult] = useState(null);
   const [memberFields, setMemberFields] = useState([]);
+  const [childrenFields, setChildrenFields] = useState([]);
   const [customValues, setCustomValues] = useState({});
 
   const load = () => {
@@ -55,6 +56,7 @@ export default function Members() {
     const { church, token } = ctx;
     fetch(`/api/members?churchId=${church.id}`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setMembers(d.members || []));
     fetch(`/api/custom-fields?churchId=${church.id}&formType=members`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setMemberFields(d.fields || []));
+    fetch(`/api/custom-fields?churchId=${church.id}&formType=children`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(d => setChildrenFields(d.fields || []));
   };
 
   useEffect(() => { load(); }, [ctx]);
@@ -73,7 +75,8 @@ export default function Members() {
     setForm({ firstName: m.first_name, lastName: m.last_name, email: m.email || '', phone: m.phone || '', dob: m.dob || '', memberType: m.member_type, notes: m.notes || '', parentId: m.parent_id || '' });
     setCustomValues({});
     setModal(m);
-    if (memberFields.length > 0) {
+    const activeFields = m.member_type === 'child' ? childrenFields : memberFields;
+    if (activeFields.length > 0) {
       const { token } = ctx;
       const res = await fetch(`/api/custom-field-values?recordId=${m.id}&recordType=member`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
@@ -94,7 +97,8 @@ export default function Members() {
     } else {
       await fetch('/api/members', { method: 'PUT', headers: h, body: JSON.stringify({ ...body, id: modal.id }) });
     }
-    if (memberId && memberFields.length > 0 && Object.keys(customValues).length > 0) {
+    const activeFields = form.memberType === 'child' ? childrenFields : memberFields;
+    if (memberId && activeFields.length > 0 && Object.keys(customValues).length > 0) {
       await fetch('/api/custom-field-values', { method: 'POST', headers: h, body: JSON.stringify({ recordId: memberId, recordType: 'member', values: customValues }) });
     }
     setSaving(false); setModal(null); load();
@@ -401,10 +405,10 @@ export default function Members() {
                 </div>
               )}
               <div><label style={lbl}>Notes</label><textarea rows={2} style={{ ...inp, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} /></div>
-              {memberFields.length > 0 && (
+              {(() => { const activeFields = form.memberType === 'child' ? childrenFields : memberFields; return activeFields.length > 0 && (
                 <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12, marginTop: 4 }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 10 }}>Custom fields</div>
-                  {memberFields.map(f => (
+                  {activeFields.map(f => (
                     <div key={f.id} style={{ marginBottom: 10 }}>
                       <label style={lbl}>{f.label}{f.required ? ' *' : ''}</label>
                       {f.field_type === 'textarea' ? (
@@ -425,7 +429,7 @@ export default function Members() {
                     </div>
                   ))}
                 </div>
-              )}
+              ); })()}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button onClick={() => setModal(null)} style={{ flex: 1, background: '#f1f5f9', color: '#374151', border: 'none', borderRadius: 10, padding: '11px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
