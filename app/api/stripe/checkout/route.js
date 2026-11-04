@@ -37,7 +37,7 @@ export async function POST(req) {
     success_url: `${origin}/${church.slug}/admin/settings?upgraded=1`,
     cancel_url: `${origin}/${church.slug}/admin/settings`,
     metadata: { churchId: church.id },
-    subscription_data: { metadata: { churchId: church.id } },
+    subscription_data: { metadata: { churchId: church.id }, trial_period_days: 14 },
   });
 
   return NextResponse.json({ url: session.url });
