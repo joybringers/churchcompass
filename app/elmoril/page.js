@@ -100,7 +100,7 @@ export default function ElmorilAdmin() {
       const d = await res.json();
       setData(d); setAuthed(true);
       try { sessionStorage.setItem('elmoril_key', k); } catch {}
-    } catch { setError('Could not connect.'); }
+    } catch (e) { setError('API error — check Vercel function logs.'); console.error(e); }
     setLoading(false);
   };
 
