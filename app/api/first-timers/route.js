@@ -49,7 +49,7 @@ async function autoUpsertMember(churchId, firstName, lastName, opts = {}) {
   const { data, error } = await supabase.from('cc_members').insert({
     church_id: churchId, first_name: fn, last_name: ln || null,
     email: opts.email || null, phone: opts.phone || null, dob: opts.dob || null,
-    member_type: opts.memberType || 'adult',
+    member_type: opts.memberType || 'adult', is_active: true,
   }).select('id').single();
   return error ? null : data.id;
 }

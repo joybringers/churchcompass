@@ -124,7 +124,7 @@ async function autoUpsertMember(churchId, firstName, lastName, opts = {}) {
   if (existing) return existing.id;
   const { data, error } = await supabase.from('cc_members').insert({
     church_id: churchId, first_name: fn, last_name: ln || null,
-    member_type: opts.memberType || 'adult', parent_id: opts.parentId || null,
+    member_type: opts.memberType || 'adult', parent_id: opts.parentId || null, is_active: true,
   }).select('id').single();
   return error ? null : data.id;
 }
