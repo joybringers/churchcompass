@@ -123,7 +123,8 @@ export default function Landing() {
               <div style={{ position: 'absolute', top: 16, right: 16, background: GOLD, color: NAV, fontSize: '0.65rem', fontWeight: 800, padding: '3px 10px', borderRadius: 20, letterSpacing: '0.06em' }}>MOST POPULAR</div>
               <div style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem', marginBottom: 4 }}>Pro</div>
               <div style={{ fontSize: '2.5rem', fontWeight: 800, color: GOLD, lineHeight: 1, marginBottom: 4 }}>£9</div>
-              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', marginBottom: 24 }}>per month</div>
+              <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>per month</div>
+              <div style={{ fontSize: '0.75rem', color: GOLD, fontWeight: 600, marginBottom: 24 }}>14-day free trial, no card required</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                 {['Up to 500 members', 'Unlimited admin accounts', 'Everything in Free', 'CSV export', 'Custom fields', 'Groups & teams', 'Guard (DBS + incidents)', 'Priority support'].map(f => (
                   <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: 'rgba(255,255,255,0.85)' }}>
@@ -133,7 +134,7 @@ export default function Landing() {
               </ul>
               <button onClick={() => router.push('/register')}
                 style={{ marginTop: 28, background: GOLD, color: NAV, border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
-                Start free trial
+                Start 14-day free trial
               </button>
             </div>
             {/* Custom */}

@@ -101,9 +101,10 @@ export default function Pricing() {
                 <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>/month</span>
               </div>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 8 }}>For growing churches that need the full toolkit.</p>
+              <div style={{ fontSize: '0.78rem', color: GOLD, fontWeight: 600, marginTop: 4 }}>14-day free trial — no card required</div>
             </div>
             <a href="/register?plan=pro" style={{ display: 'block', textAlign: 'center', padding: '13px', borderRadius: 12, background: GOLD, color: NAV, fontWeight: 800, fontSize: '0.95rem', textDecoration: 'none', marginBottom: 28 }}>
-              Start Pro
+              Start 14-day free trial
             </a>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {PRO_FEATURES.map(f => (
