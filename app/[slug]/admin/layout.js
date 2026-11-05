@@ -21,6 +21,7 @@ const navItems = [
   { label: 'Communications', icon: 'fa-envelope',    path: '/communications' },
   { label: 'Reports',      icon: 'fa-chart-bar',      path: '/reports' },
   { label: 'Settings',     icon: 'fa-gear',           path: '/settings' },
+  { label: 'Help',         icon: 'fa-circle-question', path: '/help' },
 ];
 
 export default function AdminLayout({ children }) {
@@ -59,6 +60,25 @@ export default function AdminLayout({ children }) {
   };
 
   const logout = () => { sessionStorage.removeItem(`cc_token_${slug}`); setToken(null); setAdmin(null); };
+
+  // Idle auto-logout after 60 minutes of no mouse/keyboard activity
+  useEffect(() => {
+    if (!token) return;
+    const IDLE_MS = 60 * 60 * 1000;
+    let timer = setTimeout(logout, IDLE_MS);
+    const reset = () => { clearTimeout(timer); timer = setTimeout(logout, IDLE_MS); };
+    window.addEventListener('mousemove', reset);
+    window.addEventListener('keydown', reset);
+    window.addEventListener('click', reset);
+    window.addEventListener('touchstart', reset);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('mousemove', reset);
+      window.removeEventListener('keydown', reset);
+      window.removeEventListener('click', reset);
+      window.removeEventListener('touchstart', reset);
+    };
+  }, [token]);
 
   if (!authChecked) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
