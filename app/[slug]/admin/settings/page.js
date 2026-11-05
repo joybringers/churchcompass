@@ -68,7 +68,7 @@ export default function Settings() {
 
   const { church, token, slug, admin } = ctx || {};
   const isPro = church?.plan === 'pro' || church?.plan === 'custom';
-  const isFlutterwave = church?.payment_provider === 'flutterwave';
+  const isPaystack = church?.payment_provider === 'paystack' || church?.payment_provider === 'flutterwave';
 
   useEffect(() => {
     try {
@@ -194,8 +194,8 @@ export default function Settings() {
 
   const startCheckout = async (billing) => {
     setUpgradeLoading(billing);
-    const useFlutterwave = isNigeria || church?.currency === 'ngn';
-    const endpoint = useFlutterwave ? '/api/flutterwave/checkout' : '/api/stripe/checkout';
+    const usePaystack = isNigeria || church?.currency === 'ngn';
+    const endpoint = usePaystack ? '/api/paystack/checkout' : '/api/stripe/checkout';
     const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ churchId: church.id, billing }) });
     const data = await res.json();
     setUpgradeLoading('');
@@ -355,7 +355,7 @@ export default function Settings() {
                   {isPro && <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 600 }}><i className="fas fa-circle-check" style={{ marginRight: 4 }} />Active</span>}
                 </div>
               </div>
-              {isPro && !isFlutterwave && (
+              {isPro && !isPaystack && (
                 <button onClick={openBillingPortal} disabled={billingLoading}
                   style={{ background: '#f1f5f9', color: NAV, border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: billingLoading ? 'not-allowed' : 'pointer', fontSize: '0.875rem' }}>
                   <i className="fas fa-arrow-up-right-from-square" style={{ marginRight: 6 }} />
@@ -368,10 +368,10 @@ export default function Settings() {
                 To cancel, change payment method, or download invoices — click <strong>Manage billing</strong> above.
               </p>
             )}
-            {isPro && isFlutterwave && (
+            {isPro && isPaystack && (
               <p style={{ color: '#64748b', fontSize: '0.8rem', marginTop: 12 }}>
                 <i className="fas fa-credit-card" style={{ marginRight: 6, color: '#16a34a' }} />
-                Billed in Naira (₦) via Flutterwave.{' '}
+                Billed in Naira (₦) via Paystack.{' '}
                 To cancel or update your payment method, email <strong>admin@elmorilx.com</strong>.
               </p>
             )}
