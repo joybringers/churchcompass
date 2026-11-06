@@ -192,7 +192,7 @@ export default function Pricing() {
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontWeight: 800, color: NAV, fontSize: '1.1rem', marginBottom: 4 }}>Free</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontSize: '2.8rem', fontWeight: 900, color: NAV }}>£0</span>
+                <span style={{ fontSize: '2.8rem', fontWeight: 900, color: NAV }}>{isNigeria ? '₦0' : '£0'}</span>
                 <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>/month</span>
               </div>
               <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: 8 }}>Perfect for small or new churches getting started.</p>

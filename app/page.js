@@ -163,7 +163,7 @@ export default function Landing() {
             {/* Free */}
             <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
               <div style={{ fontWeight: 800, color: NAV, fontSize: '1.1rem', marginBottom: 4 }}>Free</div>
-              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: NAV, lineHeight: 1, marginBottom: 4 }}>£0</div>
+              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: NAV, lineHeight: 1, marginBottom: 4 }}>{isNigeria ? '₦0' : '£0'}</div>
               <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: 24 }}>forever</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                 {['Up to 100 members', '3 admin accounts', 'Children check-in', 'Attendance tracking', 'First-timer forms', 'Events management'].map(f => (
