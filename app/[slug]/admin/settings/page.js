@@ -27,8 +27,12 @@ function RoleChip({ role }) {
 export default function Settings() {
   const ctx = useCC();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [tab, setTab] = useState('profile');
+  const [tab, setTab] = useState(() => {
+    const t = searchParams?.get('tab');
+    return ['profile', 'team', 'branding', 'fields', 'billing', 'security'].includes(t) ? t : 'profile';
+  });
   const [saved, setSaved] = useState('');
 
   // Profile

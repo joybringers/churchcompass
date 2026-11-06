@@ -212,7 +212,7 @@ export default function AdminLayout({ children }) {
               <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.825rem', flex: 1 }}>
                 You're on the <strong>Free plan</strong> — limited to 100 members and 3 admins.
               </span>
-              <button onClick={() => router.push(`/${slug}/admin/settings`)}
+              <button onClick={() => router.push(`/${slug}/admin/settings?tab=billing`)}
                 style={{ background: GOLD, color: '#1e3a5f', border: 'none', borderRadius: 8, padding: '6px 16px', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 Upgrade to Pro →
               </button>
