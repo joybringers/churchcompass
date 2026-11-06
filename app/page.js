@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const NAV = '#1e3a5f';
@@ -57,6 +57,13 @@ function ContactModal({ onClose }) {
 export default function Landing() {
   const router = useRouter();
   const [showContact, setShowContact] = useState(false);
+  const [isNigeria, setIsNigeria] = useState(false);
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setIsNigeria(tz.startsWith('Africa/') && new Date().getTimezoneOffset() === -60);
+    } catch {}
+  }, []);
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {showContact && <ContactModal onClose={() => setShowContact(false)} />}
@@ -174,9 +181,9 @@ export default function Landing() {
             <div style={{ background: NAV, borderRadius: 16, padding: '32px 28px', boxShadow: '0 4px 24px rgba(30,58,95,0.25)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 16, right: 16, background: GOLD, color: NAV, fontSize: '0.65rem', fontWeight: 800, padding: '3px 10px', borderRadius: 20, letterSpacing: '0.06em' }}>MOST POPULAR</div>
               <div style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem', marginBottom: 4 }}>Pro</div>
-              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: GOLD, lineHeight: 1, marginBottom: 4 }}>£9</div>
+              <div style={{ fontSize: '2.5rem', fontWeight: 800, color: GOLD, lineHeight: 1, marginBottom: 4 }}>{isNigeria ? '₦2,000' : '£9'}</div>
               <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>per month</div>
-              <div style={{ fontSize: '0.75rem', color: GOLD, fontWeight: 600, marginBottom: 24 }}>14-day free trial, no card required</div>
+              <div style={{ fontSize: '0.75rem', color: GOLD, fontWeight: 600, marginBottom: 24 }}>{isNigeria ? 'Paid via Paystack · Cancel anytime' : '14-day free trial, no card required'}</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                 {['Up to 500 members', 'Unlimited admin accounts', 'Everything in Free', 'CSV export', 'Custom fields', 'Groups & teams', 'Guard (DBS + incidents)', 'Priority support'].map(f => (
                   <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: 'rgba(255,255,255,0.85)' }}>
@@ -186,11 +193,11 @@ export default function Landing() {
               </ul>
               <button onClick={() => router.push('/register?plan=pro&billing=monthly')}
                 style={{ marginTop: 28, background: GOLD, color: NAV, border: 'none', borderRadius: 10, padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>
-                Start 14-day free trial
+                {isNigeria ? 'Get Pro — ₦2,000/month' : 'Start 14-day free trial'}
               </button>
               <button onClick={() => router.push('/pricing')}
                 style={{ marginTop: 8, background: 'transparent', color: 'rgba(255,255,255,0.5)', border: 'none', padding: '4px', fontWeight: 600, cursor: 'pointer', fontSize: '0.75rem' }}>
-                Save with annual billing (£90/yr) →
+                {isNigeria ? 'Save with annual billing (₦20,000/yr) →' : 'Save with annual billing (£90/yr) →'}
               </button>
             </div>
             {/* Custom */}
