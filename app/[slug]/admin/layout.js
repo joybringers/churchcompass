@@ -59,7 +59,12 @@ export default function AdminLayout({ children }) {
     setLoginLoading(false);
   };
 
-  const logout = () => { sessionStorage.removeItem(`cc_token_${slug}`); setToken(null); setAdmin(null); };
+  const logout = () => {
+    sessionStorage.removeItem(`cc_token_${slug}`);
+    setToken(null);
+    setAdmin(null);
+    setLoginForm({ email: '', password: '' });
+  };
 
   // Idle auto-logout after 60 minutes of no mouse/keyboard activity
   useEffect(() => {
@@ -107,9 +112,9 @@ export default function AdminLayout({ children }) {
         <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: NAV, marginBottom: 4 }}>Admin login</h2>
         <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: 24 }}>Enter your credentials to manage {church.name}.</p>
         <form onSubmit={login} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <input type="email" placeholder="Admin email" required value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))}
+          <input type="email" placeholder="Admin email" required autoComplete="off" value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))}
             style={{ padding: '11px 14px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '1rem', fontFamily: 'inherit', outline: 'none' }} />
-          <input type="password" placeholder="Password" required value={loginForm.password} onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
+          <input type="password" placeholder="Password" required autoComplete="new-password" value={loginForm.password} onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
             style={{ padding: '11px 14px', border: '1.5px solid #dde3f0', borderRadius: 10, fontSize: '1rem', fontFamily: 'inherit', outline: 'none' }} />
           {loginError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', color: '#dc2626', fontSize: '0.85rem' }}>{loginError}</div>}
           <button type="submit" disabled={loginLoading}
