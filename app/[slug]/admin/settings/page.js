@@ -73,7 +73,7 @@ export default function Settings() {
   useEffect(() => {
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      setIsNigeria(tz === 'Africa/Lagos');
+      setIsNigeria(tz.startsWith('Africa/') && new Date().getTimezoneOffset() === -60);
     } catch {}
   }, []);
 
