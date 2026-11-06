@@ -30,9 +30,9 @@ export async function POST(req) {
       });
     } catch { /* ignore */ }
 
-    // If registering for Pro, create Stripe checkout session
+    // If registering for Pro, create Stripe checkout session (not for NGN — those use Paystack)
     let stripeUrl = null;
-    if (plan === 'pro' && process.env.STRIPE_SECRET_KEY) {
+    if (plan === 'pro' && currency !== 'ngn' && process.env.STRIPE_SECRET_KEY) {
       try {
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
